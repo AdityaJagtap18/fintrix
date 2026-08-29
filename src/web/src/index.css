@@ -54,6 +54,74 @@ body {
   font-style: italic;
 }
 
+.result-card__source {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: #777;
+}
+
+.upload-form {
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.upload-form summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.25rem 0;
+}
+
+.upload-form__notice {
+  font-size: 0.85rem;
+  color: #666;
+  background: #f7f7f8;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.upload-form__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.upload-form__row label {
+  font-size: 0.85rem;
+  color: #444;
+  min-width: 140px;
+}
+
+.upload-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.upload-form__grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #444;
+}
+
+.upload-form__grid input {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.upload-form__checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+}
+
 .result-card {
   background: #fff;
   border-radius: 8px;

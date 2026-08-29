@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchProcessingResults, type ProcessingResultDto } from "../api/processingClient";
+import { UploadInvoiceForm } from "../components/UploadInvoiceForm";
 
 type LoadState = "loading" | "loaded" | "error";
 
@@ -51,6 +52,9 @@ export function ProcessingResultsPage() {
         routing. A straight-through decision produces a payment instruction; anything else
         needs a human in the Review queue.
       </p>
+
+      <UploadInvoiceForm onSubmitted={(result) => setResults((prev) => [...prev, result])} />
+
       <div role="list" aria-label="Processing results" className="processing-page__list">
         {results.map((result) => (
           <ResultCard key={result.invoice_id} result={result} />
@@ -73,6 +77,10 @@ function ResultCard({ result }: { result: ProcessingResultDto }) {
           {result.decision.replace(/_/g, " ")}
         </span>
       </header>
+
+      {result.source_filename && (
+        <p className="result-card__source">Uploaded: {result.source_filename}</p>
+      )}
 
       <dl className="result-card__meta">
         <div>
