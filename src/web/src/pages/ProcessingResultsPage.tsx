@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchProcessingResults, type ProcessingResultDto } from "../api/processingClient";
 import { UploadInvoiceForm } from "../components/UploadInvoiceForm";
 
@@ -14,6 +14,9 @@ export function ProcessingResultsPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [results, setResults] = useState<ProcessingResultDto[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Object URLs for files picked in the upload form, keyed by invoice_id — browser-local
+  // only, never sent to the server (see UploadInvoiceForm's onSubmitted comment).
+  const [fileUrls, setFileUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +33,18 @@ export function ProcessingResultsPage() {
       });
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // Cleanup must see the latest map at unmount time without re-running on every upload —
+  // a ref sidesteps needing fileUrls in the effect's deps (which would revoke and
+  // re-attach on every single upload instead of only when the page itself goes away).
+  const fileUrlsRef = useRef(fileUrls);
+  fileUrlsRef.current = fileUrls;
+
+  useEffect(() => {
+    return () => {
+      Object.values(fileUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -53,18 +68,25 @@ export function ProcessingResultsPage() {
         needs a human in the Review queue.
       </p>
 
-      <UploadInvoiceForm onSubmitted={(result) => setResults((prev) => [...prev, result])} />
+      <UploadInvoiceForm
+        onSubmitted={(result, fileUrl) => {
+          setResults((prev) => [...prev, result]);
+          if (fileUrl) {
+            setFileUrls((prev) => ({ ...prev, [result.invoice_id]: fileUrl }));
+          }
+        }}
+      />
 
       <div role="list" aria-label="Processing results" className="processing-page__list">
         {results.map((result) => (
-          <ResultCard key={result.invoice_id} result={result} />
+          <ResultCard key={result.invoice_id} result={result} fileUrl={fileUrls[result.invoice_id]} />
         ))}
       </div>
     </div>
   );
 }
 
-function ResultCard({ result }: { result: ProcessingResultDto }) {
+function ResultCard({ result, fileUrl }: { result: ProcessingResultDto; fileUrl?: string }) {
   const isStraightThrough = result.decision === "straight_through";
 
   return (
@@ -79,7 +101,17 @@ function ResultCard({ result }: { result: ProcessingResultDto }) {
       </header>
 
       {result.source_filename && (
-        <p className="result-card__source">Uploaded: {result.source_filename}</p>
+        <p className="result-card__source">
+          Uploaded: {result.source_filename}
+          {fileUrl && (
+            <>
+              {" — "}
+              <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                view file
+              </a>
+            </>
+          )}
+        </p>
       )}
 
       <dl className="result-card__meta">

@@ -1,10 +1,14 @@
 import { useState } from "react";
 import type { ProcessInvoiceRequest, ProcessingResultDto } from "../api/processingClient";
 import { submitInvoice } from "../api/processingClient";
-import { FAKE_INVOICE_PRESETS } from "../data/fakeInvoicePresets";
+import { TEST_INVOICE_SCENARIOS } from "../data/testInvoiceScenarios";
 
 interface UploadInvoiceFormProps {
-  onSubmitted: (result: ProcessingResultDto) => void;
+  // fileUrl is a browser-local object URL for the picked file, not something the backend
+  // ever sees or stores — there's no live OCR, so the server only ever gets the filename
+  // (source_filename on the request). This is purely so the UI can let you look at the
+  // file you attached.
+  onSubmitted: (result: ProcessingResultDto, fileUrl: string | null) => void;
 }
 
 const BLANK: ProcessInvoiceRequest = {
@@ -44,7 +48,7 @@ function toRequest(form: ProcessInvoiceRequest): ProcessInvoiceRequest {
 
 export function UploadInvoiceForm({ onSubmitted }: UploadInvoiceFormProps) {
   const [form, setForm] = useState<ProcessInvoiceRequest>(BLANK);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,16 +57,16 @@ export function UploadInvoiceForm({ onSubmitted }: UploadInvoiceFormProps) {
   }
 
   function loadPreset(presetId: string) {
-    const preset = FAKE_INVOICE_PRESETS.find((p) => p.id === presetId);
+    const preset = TEST_INVOICE_SCENARIOS.find((p) => p.id === presetId);
     if (preset) {
-      setForm({ ...preset.request, source_filename: fileName });
+      setForm({ ...preset.request, source_filename: file?.name ?? null });
     }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    setFileName(file?.name ?? null);
-    update("source_filename", file?.name ?? null);
+    const picked = e.target.files?.[0] ?? null;
+    setFile(picked);
+    update("source_filename", picked?.name ?? null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -71,7 +75,11 @@ export function UploadInvoiceForm({ onSubmitted }: UploadInvoiceFormProps) {
     setError(null);
     try {
       const result = await submitInvoice(toRequest(form));
-      onSubmitted(result);
+      // Created fresh per submission (not reused across uploads) so each result keeps
+      // its own URL even if the same file is picked again later — object URLs are cheap
+      // and the browser reclaims one when its tab closes even if never revoked.
+      const fileUrl = file ? URL.createObjectURL(file) : null;
+      onSubmitted(result, fileUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not process this invoice.");
     } finally {
@@ -84,14 +92,15 @@ export function UploadInvoiceForm({ onSubmitted }: UploadInvoiceFormProps) {
       <summary>Upload an invoice</summary>
       <p className="upload-form__notice">
         There's no live OCR wired in yet (that needs an Azure Document Intelligence
-        resource — see spec.md). The file below is attached for reference only and its
-        content is never read; fill in the fields as if you already extracted them, or
-        load a preset below to test a specific routing outcome.
+        resource — see spec.md), so the file below is never sent to or read by the server —
+        it stays in your browser and you can view it after processing. Fill in the fields
+        below as if you already extracted them, or load a preset to test a specific
+        routing outcome.
       </p>
 
       <form onSubmit={handleSubmit}>
         <div className="upload-form__row">
-          <label htmlFor="preset-select">Load a fake invoice</label>
+          <label htmlFor="preset-select">Load a test scenario</label>
           <select
             id="preset-select"
             onChange={(e) => loadPreset(e.target.value)}
@@ -100,7 +109,7 @@ export function UploadInvoiceForm({ onSubmitted }: UploadInvoiceFormProps) {
             <option value="" disabled>
               Choose a scenario…
             </option>
-            {FAKE_INVOICE_PRESETS.map((preset) => (
+            {TEST_INVOICE_SCENARIOS.map((preset) => (
               <option key={preset.id} value={preset.id} title={preset.description}>
                 {preset.label}
               </option>

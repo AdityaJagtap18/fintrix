@@ -40,5 +40,9 @@ src/web/.vite/
 tests/golden/private/
 *.pdf
 !docs/**/*.pdf
+# Synthetic test fixtures only (scripts/generate_sample_invoices.py) — no real invoice ever
+# belongs here, this rule exists specifically to keep that true.
+!src/web/public/sample-invoice.pdf
+!src/web/public/sample-invoices/*.pdf
 data/raw/
 data/analyzed/

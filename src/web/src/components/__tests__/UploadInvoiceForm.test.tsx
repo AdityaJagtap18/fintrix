@@ -42,7 +42,7 @@ describe("UploadInvoiceForm", () => {
 
     render(<UploadInvoiceForm onSubmitted={onSubmitted} />);
 
-    fireEvent.change(screen.getByLabelText("Load a fake invoice"), {
+    fireEvent.change(screen.getByLabelText("Load a test scenario"), {
       target: { value: "clean" },
     });
     expect(screen.getByLabelText("Vendor name")).toHaveValue("Beta Traders");
@@ -63,7 +63,7 @@ describe("UploadInvoiceForm", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ detail: "total is required" }, 422));
 
     render(<UploadInvoiceForm onSubmitted={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText("Load a fake invoice"), {
+    fireEvent.change(screen.getByLabelText("Load a test scenario"), {
       target: { value: "clean" },
     });
 
@@ -84,7 +84,7 @@ describe("UploadInvoiceForm", () => {
 
     await userEvent.upload(input, file);
 
-    fireEvent.change(screen.getByLabelText("Load a fake invoice"), {
+    fireEvent.change(screen.getByLabelText("Load a test scenario"), {
       target: { value: "clean" },
     });
     // Loading a preset after picking a file should keep the file name attached.

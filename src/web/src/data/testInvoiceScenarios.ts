@@ -4,14 +4,14 @@ import type { ProcessInvoiceRequest } from "../api/processingClient";
 // tests/unit/test_processing_api.py's upload tests so the UI and the test suite agree on
 // what each one actually does. "27AAPFU0939F1ZV" is the same checksum-valid GSTIN used
 // throughout the codebase (scripts/demo_process_invoice.py, api/routers/processing.py).
-export interface FakeInvoicePreset {
+export interface TestInvoiceScenario {
   id: string;
   label: string;
   description: string;
   request: ProcessInvoiceRequest;
 }
 
-export const FAKE_INVOICE_PRESETS: FakeInvoicePreset[] = [
+export const TEST_INVOICE_SCENARIOS: TestInvoiceScenario[] = [
   {
     id: "clean",
     label: "Clean invoice — straight through",
