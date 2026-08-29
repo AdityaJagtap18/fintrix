@@ -124,6 +124,7 @@ source_modules = [
     "core.extraction.classification",
     "core.extraction.splitting",
     "core.extraction.cache",
+    "core.payment.instruction",
 ]
 forbidden_modules = [
     "azure",
