@@ -9,6 +9,163 @@ body {
   color: #1a1a1a;
 }
 
+.app__tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.75rem 1.5rem 0;
+  background: #fff;
+  border-bottom: 1px solid #e2e2e4;
+}
+
+.app__tab {
+  border: none;
+  background: transparent;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  color: #555;
+}
+
+.app__tab--active {
+  color: #1a1a1a;
+  font-weight: 600;
+  border-bottom-color: #e63946;
+}
+
+.processing-page {
+  padding: 1rem 1.5rem;
+  max-width: 900px;
+}
+
+.processing-page__subtitle {
+  color: #555;
+  margin-top: 0;
+}
+
+.processing-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.processing-page__no-payment {
+  color: #666;
+  font-style: italic;
+}
+
+.result-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  border-left: 4px solid #ccc;
+}
+
+.result-card--straight_through {
+  border-left-color: #2a9d8f;
+}
+
+.result-card--exception,
+.result-card--rejected {
+  border-left-color: #c0392b;
+}
+
+.result-card--review,
+.result-card--full_review {
+  border-left-color: #e9a23b;
+}
+
+.result-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.result-card__header h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.decision-badge {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: #eee;
+  color: #333;
+  white-space: nowrap;
+}
+
+.decision-badge--straight_through {
+  background: #d7f2ee;
+  color: #1b6d63;
+}
+
+.decision-badge--exception,
+.decision-badge--rejected {
+  background: #fbe0dd;
+  color: #96281b;
+}
+
+.decision-badge--review,
+.decision-badge--full_review {
+  background: #fbeacb;
+  color: #8a5a12;
+}
+
+.result-card__meta {
+  display: flex;
+  gap: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.result-card__meta dt {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.result-card__meta dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.payment-instruction {
+  margin-top: 0.75rem;
+  background: #f2fbf9;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+}
+
+.payment-instruction h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.payment-instruction dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+}
+
+.payment-instruction dt {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.payment-instruction dd {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.payment-instruction__disclaimer {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: #777;
+}
+
 .review-page {
   padding: 1rem 1.5rem;
 }

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from api.routers import review
+from api.routers import processing, review
 
 app = FastAPI(title="Invoice IQ Review API", version="0.1.0")
 app.include_router(review.router)
+app.include_router(processing.router)
 
 
 @app.get("/health/live")
