@@ -47,6 +47,17 @@ def test_ac_03_1_second_claim_rejected_naming_current_holder():
     assert exc_info.value.invoice_id == "inv-1"
 
 
+def test_reclaiming_your_own_active_lock_is_a_no_op_success():
+    # Not a conflict: a duplicate claim call from the same reviewer against their own
+    # still-active lock (e.g. React StrictMode double-firing a mount effect, or a client
+    # retry) must not raise AlreadyClaimedError against yourself.
+    repo = FakeReviewAssignmentRepository()
+    first = claim("inv-1", "priya", NOW, repo)
+    second = claim("inv-1", "priya", NOW, repo)
+    assert second.claimed_by == "priya"
+    assert second.expires_at == first.expires_at
+
+
 def test_claim_on_an_expired_lock_succeeds_immediately_without_waiting_for_sweep():
     repo = FakeReviewAssignmentRepository()
     claim("inv-1", "priya", NOW, repo, lock_duration=timedelta(minutes=30))

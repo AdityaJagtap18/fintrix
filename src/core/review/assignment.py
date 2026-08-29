@@ -43,7 +43,11 @@ def claim(
 ) -> ReviewAssignment:
     """AC-03.1: a second claim while one is active is rejected, naming the current holder.
     An already-expired claim is treated as available immediately — a claim attempt
-    shouldn't have to wait for the next sweep (`sweep_expired_locks`) to notice."""
+    shouldn't have to wait for the next sweep (`sweep_expired_locks`) to notice.
+    Re-claiming your own still-active lock is a no-op success rather than a conflict —
+    this matters in practice, not just in theory: a duplicate claim call from the same
+    reviewer (a client retry, or React StrictMode double-firing a mount effect in dev)
+    must not lock a reviewer out of the review they're already holding."""
     existing = repo.get(invoice_id)
     if (
         existing is not None
@@ -51,6 +55,8 @@ def claim(
         and existing.is_claimed
         and not existing.is_expired(now)
     ):
+        if existing.claimed_by == reviewer:
+            return existing
         raise AlreadyClaimedError(invoice_id, existing.claimed_by)
 
     assignment = ReviewAssignment(
