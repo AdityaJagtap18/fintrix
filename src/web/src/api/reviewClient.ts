@@ -61,10 +61,18 @@ export async function claimInvoice(invoiceId: string, reviewer: string): Promise
   return { invoiceId: dto.invoice_id, claimedBy: dto.claimed_by, expiresAt: dto.expires_at };
 }
 
-export async function releaseInvoice(invoiceId: string, reviewer: string): Promise<void> {
+export async function releaseInvoice(
+  invoiceId: string,
+  reviewer: string,
+  options?: { keepalive?: boolean },
+): Promise<void> {
   const response = await fetch(`${API_BASE}/${invoiceId}/release`, {
     method: "POST",
     headers: authHeaders(reviewer),
+    // `keepalive` lets this request outlive the page during a `pagehide`-triggered
+    // release (tab close/refresh) — a normal fetch gets aborted by the browser the
+    // instant the page starts unloading, which is exactly when this call matters most.
+    keepalive: options?.keepalive ?? false,
   });
   if (!response.ok) await throwForErrorResponse(response, invoiceId);
 }

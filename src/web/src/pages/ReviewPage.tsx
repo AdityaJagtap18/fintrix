@@ -51,6 +51,21 @@ export function ReviewPage() {
     };
   }, [invoice.invoiceId]);
 
+  useEffect(() => {
+    // A real tab close/refresh tears the page down before this component's own unmount
+    // cleanup (above) can run, so that path alone leaves the claim held for the full
+    // lock window (up to DEFAULT_LOCK_DURATION_MINUTES). `pagehide` fires reliably in
+    // that case; `keepalive` lets the release request survive past unload.
+    function handlePageHide() {
+      if (claimedRef.current) {
+        claimedRef.current = false;
+        void releaseInvoice(invoice.invoiceId, CURRENT_REVIEWER, { keepalive: true });
+      }
+    }
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, [invoice.invoiceId]);
+
   function handleSelectField(name: string) {
     setSelectedFieldName(name);
   }

@@ -114,4 +114,26 @@ describe("ReviewPage", () => {
     // The editor is still on screen — a failed submit doesn't strand the reviewer.
     expect(screen.getByRole("list", { name: "Extracted fields" })).toBeInTheDocument();
   });
+
+  it("releases the claim with keepalive on pagehide, not just on unmount", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
+    );
+
+    render(<ReviewPage />);
+    await screen.findByRole("button", { name: "Approve" });
+
+    fetchMock.mockClear();
+    window.dispatchEvent(new Event("pagehide"));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/v1/review/inv-demo-1/release");
+    expect(init.keepalive).toBe(true);
+
+    // Unmounting afterwards must not release a second time — pagehide already did it.
+    fetchMock.mockClear();
+    cleanup();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
