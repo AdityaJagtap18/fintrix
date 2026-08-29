@@ -1,0 +1,115 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f7f7f8;
+  color: #1a1a1a;
+}
+
+.review-page {
+  padding: 1rem 1.5rem;
+}
+
+.review-page__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.document-viewer {
+  background: #2b2b2b;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.document-viewer--error {
+  padding: 2rem;
+  color: #c0392b;
+  background: #fff;
+}
+
+.document-viewer__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  color: #eee;
+  font-size: 0.85rem;
+}
+
+.document-viewer__canvas-wrap {
+  overflow: auto;
+  max-height: 80vh;
+}
+
+.field-overlay {
+  border: 1px solid transparent;
+}
+
+.field-overlay--needs-review {
+  border-color: #f4a261;
+  border-style: dashed;
+}
+
+.field-overlay--selected {
+  border-color: #e63946;
+  border-width: 2px;
+  border-style: solid;
+}
+
+.field-editor {
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.field-row[data-selected="true"] {
+  background: #fdecea;
+}
+
+.field-row[data-needs-review="true"] label {
+  font-weight: 600;
+}
+
+.confidence {
+  font-variant-numeric: tabular-nums;
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.issue-panel {
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.issue--hard {
+  border-left: 3px solid #c0392b;
+  padding-left: 0.5rem;
+}
+
+.issue--soft {
+  border-left: 3px solid #e9a23b;
+  padding-left: 0.5rem;
+}
+
+.review-page__actions {
+  display: flex;
+  gap: 0.5rem;
+}

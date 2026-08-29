@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Env / secrets
+.env
+*.local.env
+.env.*
+!.env.example
+
+# Azure / Bicep
+*.bicepparam.local
+
+# Node / React (src/web)
+src/web/node_modules/
+src/web/dist/
+src/web/.vite/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+*.swp
+
+# OS
+.DS_Store
+
+# Data / artifacts (never commit real invoices or extracted data)
+tests/golden/private/
+*.pdf
+!docs/**/*.pdf
+data/raw/
+data/analyzed/

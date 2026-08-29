@@ -1,0 +1,131 @@
+[project]
+name = "ap-automation"
+version = "0.1.0"
+description = "Invoice IQ — Accounts Payable Automation with Human-in-the-Loop (MitraEdge)"
+authors = [{ name = "Aditya Jagtap", email = "adiraj2503@gmail.com" }]
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "Proprietary" }
+dependencies = [
+    "rapidfuzz>=3.9",
+    "python-dateutil>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "types-python-dateutil>=2.9",
+    "bandit>=1.7",
+    "pre-commit>=3.7",
+    "import-linter>=2.0",
+    # Real, tested code in src/api and src/functions/orchestrator depends on these —
+    # neither needs live Azure credentials to import or to run tests (the Durable
+    # Functions orchestrator is unit tested by driving the generator directly, no
+    # Functions host involved; FastAPI is tested via TestClient, no server needed).
+    "fastapi>=0.112",
+    "httpx>=0.27",
+    "azure-functions>=1.20",
+    "azure-functions-durable>=1.2",
+]
+# Added incrementally as later Phase 2 pieces land — kept separate because these genuinely
+# aren't exercised by any test yet (T-041 extraction adapter, T-047 SQL repos, T-048 blob/
+# service bus adapters) and some need real Azure resources or credentials to be
+# meaningfully testable at all.
+azure = [
+    "azure-ai-documentintelligence>=1.0.0b4",
+    "azure-identity>=1.17",
+    "azure-storage-blob>=12.20",
+    "azure-servicebus>=7.12",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy>=2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+addopts = "-ra --strict-markers"
+pythonpath = ["src", "."]
+
+[tool.coverage.run]
+source = ["src/core", "src/api", "src/functions"]
+branch = true
+
+[tool.coverage.report]
+# Constitution Article XI: >=90% on src/core specifically, >=80% overall. Coverage.py's
+# fail_under is a single blended number, not per-path — 90 here is deliberately the
+# stricter of the two, so this run can never silently satisfy "80% overall" while core
+# itself has drifted below 90. If a future infrastructure-heavy module (real Azure SDK
+# adapters, hard to unit test meaningfully) drags the blended number down, split this into
+# two `coverage report --include` runs rather than lowering this number.
+fail_under = 90
+show_missing = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "N"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["core", "api", "functions"]
+mypy_path = "src"
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "rapidfuzz.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# The azure-functions-durable package ships no py.typed marker / stubs as of this writing.
+module = "azure.*"
+ignore_missing_imports = true
+
+[tool.importlinter]
+root_package = "core"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Core stays pure (Article I)"
+type = "forbidden"
+# Deliberately not the whole "core" package: constitution Article I's own enforcement grep
+# checks exactly this set (models.py, validation/, routing/, matching/) and no more —
+# core.extraction.document_intelligence is the one sanctioned exception (plan.md §2: "the
+# only file importing the DI SDK"), and persistence/review are Protocol-only by
+# construction so an accidental Azure import there is exactly as bad as anywhere else. The
+# other extraction submodules (base, classification, splitting, cache) are listed
+# explicitly so *they* stay held to the same bar even though document_intelligence.py,
+# their sibling, isn't.
+source_modules = [
+    "core.models",
+    "core.validation",
+    "core.routing",
+    "core.matching",
+    "core.persistence",
+    "core.review",
+    "core.extraction.base",
+    "core.extraction.classification",
+    "core.extraction.splitting",
+    "core.extraction.cache",
+]
+forbidden_modules = [
+    "azure",
+    "infrastructure",
+    "functions",
+    "api",
+    "fastapi",
+    "sqlalchemy",
+]

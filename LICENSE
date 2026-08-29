@@ -1,0 +1,90 @@
+PROPRIETARY SOFTWARE LICENSE
+
+Invoice IQ — Accounts Payable Automation with Human-in-the-Loop
+Copyright (c) 2026 MitraEdge (Aditya Jagtap). All rights reserved.
+
+NOTICE
+------
+This software and its accompanying documentation, specifications, infrastructure
+templates, models, and related materials (collectively, the "Software") are the
+confidential and proprietary property of MitraEdge. The Software is licensed, not
+sold. No ownership rights transfer under any circumstances.
+
+NO LICENSE GRANTED BY DEFAULT
+-----------------------------
+No right or licence to use, copy, modify, merge, publish, distribute, sublicense,
+sell, host, or create derivative works of the Software is granted to any person or
+entity except under a separate written agreement signed by an authorised
+representative of MitraEdge.
+
+Absent such an agreement, you may not:
+
+  (a) use the Software for any purpose, commercial or otherwise;
+  (b) copy or reproduce the Software in whole or in part;
+  (c) modify, adapt, translate, or create derivative works from the Software;
+  (d) distribute, sublicense, lease, rent, lend, or transfer the Software;
+  (e) reverse engineer, decompile, or disassemble the Software, except to the
+      extent such restriction is prohibited by applicable law;
+  (f) remove, alter, or obscure any proprietary notice contained in the Software;
+  (g) use the Software to develop a competing product or service.
+
+PERMITTED EVALUATION
+--------------------
+MitraEdge may grant limited, revocable, non-exclusive, non-transferable access for
+the sole purpose of evaluation or demonstration. Such access confers no right to
+deploy the Software in a production environment, to process live business data, or
+to retain any copy after the evaluation period ends.
+
+CUSTOMER DELIVERABLES
+---------------------
+Where MitraEdge delivers the Software to a customer under a written services
+agreement, the licence terms of that agreement govern that customer's use and
+supersede this notice to the extent of any conflict. Nothing in this file grants a
+customer rights beyond those expressly stated in their signed agreement.
+
+CONFIDENTIALITY
+---------------
+The Software contains trade secrets and confidential information of MitraEdge,
+including without limitation its extraction pipeline design, confidence routing
+logic, validation rule catalogue, and trained model artefacts. Any person granted
+access shall maintain the Software in confidence and shall not disclose it to any
+third party.
+
+THIRD-PARTY COMPONENTS
+----------------------
+The Software incorporates third-party open-source components, each governed by its
+own licence. A list of such components and their licences is maintained in
+THIRD_PARTY_NOTICES.md. Nothing in this licence limits your rights under those
+licences with respect to those components in isolation.
+
+NO WARRANTY
+-----------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, TITLE, AND NONINFRINGEMENT. MITRAEDGE DOES NOT WARRANT THAT THE
+SOFTWARE WILL BE ERROR-FREE, THAT EXTRACTION RESULTS WILL BE ACCURATE, OR THAT
+OPERATION WILL BE UNINTERRUPTED.
+
+LIMITATION OF LIABILITY
+-----------------------
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL MITRAEDGE BE
+LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR
+FOR ANY LOSS OF PROFITS, REVENUE, DATA, OR BUSINESS, ARISING OUT OF OR RELATED TO
+THE SOFTWARE, WHETHER IN CONTRACT, TORT, OR OTHERWISE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGES.
+
+TERMINATION
+-----------
+Any access granted terminates automatically and immediately upon breach of these
+terms. Upon termination you shall cease all use and destroy all copies of the
+Software in your possession or control.
+
+GOVERNING LAW
+-------------
+This licence is governed by the laws of India, without regard to conflict-of-law
+principles. The courts at Pune, Maharashtra shall have exclusive jurisdiction over
+any dispute arising under it.
+
+CONTACT
+-------
+Licensing enquiries: MitraEdge — Aditya Jagtap
