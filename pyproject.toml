@@ -21,21 +21,22 @@ dev = [
     "bandit>=1.7",
     "pre-commit>=3.7",
     "import-linter>=2.0",
-    # Real, tested code in src/api and src/functions/orchestrator depends on these —
-    # neither needs live Azure credentials to import or to run tests (the Durable
-    # Functions orchestrator is unit tested by driving the generator directly, no
-    # Functions host involved; FastAPI is tested via TestClient, no server needed).
+    # Real, tested code in src/api, src/functions/orchestrator, and the Document
+    # Intelligence adapter depends on these — none need live Azure credentials to import
+    # or to run tests (the Durable Functions orchestrator is unit tested by driving the
+    # generator directly, no Functions host involved; FastAPI is tested via TestClient, no
+    # server needed; the DI adapter is tested against real SDK model objects built
+    # in-test with a fake credential, no live resource involved).
     "fastapi>=0.112",
     "httpx>=0.27",
     "azure-functions>=1.20",
     "azure-functions-durable>=1.2",
+    "azure-ai-documentintelligence>=1.0.0b4",
 ]
 # Added incrementally as later Phase 2 pieces land — kept separate because these genuinely
-# aren't exercised by any test yet (T-041 extraction adapter, T-047 SQL repos, T-048 blob/
-# service bus adapters) and some need real Azure resources or credentials to be
-# meaningfully testable at all.
+# aren't exercised by any test yet (T-047 SQL repos, T-048 blob/service bus adapters) and
+# need real Azure resources or credentials to be meaningfully testable at all.
 azure = [
-    "azure-ai-documentintelligence>=1.0.0b4",
     "azure-identity>=1.17",
     "azure-storage-blob>=12.20",
     "azure-servicebus>=7.12",
