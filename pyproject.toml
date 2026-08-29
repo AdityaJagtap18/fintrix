@@ -32,6 +32,10 @@ dev = [
     "azure-functions>=1.20",
     "azure-functions-durable>=1.2",
     "azure-ai-documentintelligence>=1.0.0b4",
+    # `make run-api` needs this to serve src/api locally against the in-memory
+    # ReviewAssignmentRepository placeholder (see api/dependencies.py) — no Azure
+    # resource or credential involved, it's the laptop dev server.
+    "uvicorn[standard]>=0.30",
 ]
 # Added incrementally as later Phase 2 pieces land — kept separate because these genuinely
 # aren't exercised by any test yet (T-047 SQL repos, T-048 blob/service bus adapters) and
@@ -40,7 +44,6 @@ azure = [
     "azure-identity>=1.17",
     "azure-storage-blob>=12.20",
     "azure-servicebus>=7.12",
-    "uvicorn[standard]>=0.30",
     "sqlalchemy>=2.0",
 ]
 
