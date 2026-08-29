@@ -28,6 +28,9 @@ export interface ProcessingResultDto {
   issues: IssueDto[];
   payment_instruction: PaymentInstructionDto | null;
   source_filename: string | null;
+  // "azure_document_intelligence" for a real POST /extract call, "manual_entry" for
+  // POST /process (including the two seeded demo invoices).
+  extraction_method: string;
 }
 
 // What POST /process accepts — the fields a real OCR extraction would have produced.
@@ -67,6 +70,25 @@ export async function submitInvoice(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ detail: "unknown error" }));
+    throw new Error(
+      typeof body.detail === "string" ? body.detail : `unexpected response: ${response.status}`,
+    );
+  }
+  return response.json();
+}
+
+// Real OCR: the file's actual bytes go to the server, which sends them to Azure Document
+// Intelligence and runs whatever it extracts through the pipeline. Nothing here is typed
+// in — every field on the result genuinely came from the document.
+export async function extractInvoice(file: File): Promise<ProcessingResultDto> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch("/api/v1/processing/extract", {
+    method: "POST",
+    body: formData,
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ detail: "unknown error" }));

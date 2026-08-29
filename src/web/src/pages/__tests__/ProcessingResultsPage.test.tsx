@@ -27,6 +27,7 @@ const STRAIGHT_THROUGH_RESULT = {
     due_date: "2026-08-31",
     approval_evidence: "system:straight_through:confidence:auto",
   },
+  extraction_method: "azure_document_intelligence",
 };
 
 const EXCEPTION_RESULT = {
@@ -39,6 +40,7 @@ const EXCEPTION_RESULT = {
   match_status: "not_applicable",
   issues: [{ rule_id: "BR-03", severity: "hard", message: "total mismatch" }],
   payment_instruction: null,
+  extraction_method: "manual_entry",
 };
 
 describe("ProcessingResultsPage", () => {
@@ -63,6 +65,7 @@ describe("ProcessingResultsPage", () => {
       expect(screen.getByTestId("payment-instruction-inv-demo-clean-1")).toBeInTheDocument();
     });
     expect(screen.getByText("HDFC0001234-000111222333")).toBeInTheDocument();
+    expect(screen.getByText("Real OCR (Azure Document Intelligence)")).toBeInTheDocument();
   });
 
   it("renders no payment instruction and shows the issue for an exception", async () => {
@@ -79,6 +82,7 @@ describe("ProcessingResultsPage", () => {
     expect(
       screen.getByText("No payment instruction — this invoice needs a human in the Review queue."),
     ).toBeInTheDocument();
+    expect(screen.getByText("Manual test data")).toBeInTheDocument();
   });
 
   it("shows an error message when the request fails", async () => {

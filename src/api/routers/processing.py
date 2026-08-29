@@ -18,11 +18,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
+from api.dependencies import get_document_intelligence_extractor
+from core.extraction.base import (
+    ExtractionRequest,
+    PermanentExtractionError,
+    TransientExtractionError,
+)
+from core.extraction.document_intelligence import DocumentIntelligenceExtractor
 from core.matching.three_way import match_invoice
 from core.models import (
     BoundingRegion,
@@ -158,6 +166,10 @@ class ProcessingResultDto(BaseModel):
     issues: list[IssueDto]
     payment_instruction: PaymentInstructionDto | None
     source_filename: str | None = None
+    # "azure_document_intelligence" for a real POST /extract call, "manual_entry" for
+    # POST /process or a seeded demo invoice — the UI shows this so results are never
+    # ambiguous about where their data actually came from.
+    extraction_method: str = "manual_entry"
 
 
 class ProcessInvoiceRequest(BaseModel):
@@ -190,6 +202,7 @@ def _process(
     duplicates: _DuplicateStore,
     *,
     source_filename: str | None = None,
+    extraction_method: str = "manual_entry",
 ) -> ProcessingResultDto:
     ctx = ValidationContext(
         invoice=invoice,
@@ -234,6 +247,7 @@ def _process(
         ],
         payment_instruction=instruction_dto,
         source_filename=source_filename,
+        extraction_method=extraction_method,
     )
 
 
@@ -262,6 +276,43 @@ def _invoice_from_request(request: ProcessInvoiceRequest, invoice_id: str) -> In
     return Invoice(invoice_id=invoice_id, document_id=invoice_id, fields=fields)
 
 
+class _VendorRegistry:
+    """Stands in for the vendor master (T-047 hasn't landed — there's no real one yet).
+    Keyed by tax ID when Document Intelligence extracted one, else by vendor name.
+
+    A vendor seen for the first time genuinely has zero processing history — there is no
+    database of prior invoices to check — so it starts at `invoices_processed=0` and is
+    correctly never eligible for straight-through (AC-01.3) until it's been seen again.
+    `bank_account` starts as `None`: FR-085 forbids ever sourcing it from the invoice
+    itself, and there's no real vendor master yet to supply a trustworthy value, so an
+    extracted vendor's first several payment instructions will show no bank reference —
+    that gap is honest, not a bug to paper over.
+    """
+
+    def __init__(self) -> None:
+        self._by_key: dict[str, Vendor] = {}
+        self._next_id = 1
+
+    def resolve_or_create(self, name: str | None, tax_id: str | None) -> Vendor:
+        key = tax_id or (name or "unknown-vendor").strip().lower()
+        vendor = self._by_key.get(key)
+        if vendor is not None:
+            vendor.invoices_processed += 1
+            return vendor
+        vendor = Vendor(
+            vendor_id=f"v-extracted-{self._next_id}",
+            name=name or "Unknown Vendor",
+            normalised_name=(name or "unknown vendor").strip().lower(),
+            tax_id=tax_id,
+            bank_account=None,
+            requires_po=False,
+            invoices_processed=0,
+        )
+        self._by_key[key] = vendor
+        self._next_id += 1
+        return vendor
+
+
 class _ProcessingStore:
     """Everything processed in this process's lifetime — the two seeded demo invoices,
     plus every `POST /process` submission after them. Computed lazily so the first `GET
@@ -272,6 +323,7 @@ class _ProcessingStore:
         self._results: list[ProcessingResultDto] | None = None
         self._adapter = MockPaymentInstructionAdapter()
         self._duplicates = _DuplicateStore(seen=set())
+        self._vendors = _VendorRegistry()
 
     def _ensure_seeded(self) -> list[ProcessingResultDto]:
         if self._results is None:
@@ -308,6 +360,44 @@ class _ProcessingStore:
         results.append(result)
         return result
 
+    def extract_and_process(
+        self, extractor: DocumentIntelligenceExtractor, content: bytes, filename: str
+    ) -> ProcessingResultDto:
+        results = self._ensure_seeded()
+        document_id = f"upload-{uuid4().hex[:8]}"
+        request = ExtractionRequest(
+            document_id=document_id,
+            blob_uri=f"local-upload://{filename}",  # placeholder — see ExtractionRequest.content
+            content_hash="",  # T-044's cache isn't wired up here; nothing consumes this
+            page_count=1,
+            content=content,
+        )
+        try:
+            extraction = extractor.extract(request)
+        except TransientExtractionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Document Intelligence is temporarily unavailable: {exc}",
+            ) from exc
+        except PermanentExtractionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Document Intelligence could not read this file: {exc}",
+            ) from exc
+
+        invoice = extraction.invoice
+        vendor = self._vendors.resolve_or_create(invoice.vendor_name, invoice.vendor_tax_id)
+        result = _process(
+            invoice,
+            vendor,
+            self._adapter,
+            self._duplicates,
+            source_filename=filename,
+            extraction_method="azure_document_intelligence",
+        )
+        results.append(result)
+        return result
+
 
 _store = _ProcessingStore()
 
@@ -320,3 +410,19 @@ def get_results() -> list[ProcessingResultDto]:
 @router.post("/process", response_model=ProcessingResultDto)
 def process_invoice(request: ProcessInvoiceRequest) -> ProcessingResultDto:
     return _store.submit(request)
+
+
+Extractor = Annotated[DocumentIntelligenceExtractor, Depends(get_document_intelligence_extractor)]
+
+
+@router.post("/extract", response_model=ProcessingResultDto)
+async def extract_invoice(
+    extractor: Extractor, file: Annotated[UploadFile, File()]
+) -> ProcessingResultDto:
+    """Real OCR: sends the uploaded file's bytes to Azure Document Intelligence's
+    prebuilt-invoice model and runs whatever it extracts through the same validate ->
+    match -> route -> payment-instruction pipeline as everything else on this router.
+    Every field on the result genuinely came from the document — nothing here is typed in.
+    """
+    content = await file.read()
+    return _store.extract_and_process(extractor, content, file.filename or "upload.pdf")

@@ -5,13 +5,28 @@ TestClient, no-live-server pattern as test_review_api.py.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import date
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
 
+from api.dependencies import get_document_intelligence_extractor
 from api.main import app
-from api.routers.processing import MockPaymentInstructionAdapter, _DuplicateStore, _ProcessingStore
+from api.routers.processing import (
+    MockPaymentInstructionAdapter,
+    _DuplicateStore,
+    _ProcessingStore,
+    _VendorRegistry,
+)
 from api.routers.processing import _store as module_store
+from core.extraction.base import (
+    ExtractionRequest,
+    ExtractionResult,
+    PermanentExtractionError,
+    TransientExtractionError,
+)
+from core.models import BoundingRegion, ExtractedField, Invoice
 
 
 @pytest.fixture
@@ -24,6 +39,7 @@ def client() -> Iterator[TestClient]:
     processing_module._store = _ProcessingStore()
     with TestClient(app) as test_client:
         yield test_client
+    app.dependency_overrides.pop(get_document_intelligence_extractor, None)
     processing_module._store = original
 
 
@@ -167,6 +183,203 @@ def test_processing_store_results_are_lazy_and_memoized() -> None:
 def test_mock_payment_instruction_adapter_still_importable_here() -> None:
     # Regression guard for the router's re-export path used above.
     assert MockPaymentInstructionAdapter().get("nothing") is None
+
+
+# --- POST /extract: real Document Intelligence, faked at the SDK client boundary ---
+
+
+def _ocr_field(name: str, value: object, confidence: float = 0.97) -> ExtractedField:
+    return ExtractedField(
+        name=name,
+        value=value,
+        confidence=confidence,
+        page=1,
+        region=BoundingRegion(page=1, polygon=(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0)),
+    )
+
+
+def clean_extracted_invoice(invoice_id: str, invoice_number: str, tax_id: str | None) -> Invoice:
+    fields = {
+        "vendor_name": _ocr_field("vendor_name", "Zeta Print Co"),
+        "invoice_number": _ocr_field("invoice_number", invoice_number),
+        "invoice_date": _ocr_field("invoice_date", date(2026, 8, 10)),
+        "currency": _ocr_field("currency", "INR"),
+        "subtotal": _ocr_field("subtotal", Decimal("500.00")),
+        "tax_total": _ocr_field("tax_total", Decimal("90.00")),
+        "total": _ocr_field("total", Decimal("590.00")),
+        "amount_due": _ocr_field("amount_due", Decimal("590.00")),
+    }
+    if tax_id:
+        fields["vendor_tax_id"] = _ocr_field("vendor_tax_id", tax_id)
+    return Invoice(invoice_id=invoice_id, document_id=invoice_id, fields=fields)
+
+
+class FakeExtractor:
+    """Stands in for the real `DocumentIntelligenceExtractor` at the FastAPI dependency
+    boundary — proves the router's error handling and result mapping, not the SDK
+    integration itself (that's test_document_intelligence.py's job)."""
+
+    def __init__(self, outcome: ExtractionResult | Exception) -> None:
+        self.outcome = outcome
+        self.last_request: ExtractionRequest | None = None
+
+    def extract(self, request: ExtractionRequest) -> ExtractionResult:
+        self.last_request = request
+        if isinstance(self.outcome, Exception):
+            raise self.outcome
+        return self.outcome
+
+
+def override_extractor(client: TestClient, extractor: FakeExtractor) -> None:
+    app.dependency_overrides[get_document_intelligence_extractor] = lambda: extractor
+
+
+def test_extract_sends_the_uploaded_bytes_to_the_extractor(client: TestClient) -> None:
+    fake = FakeExtractor(
+        ExtractionResult(
+            invoice=clean_extracted_invoice("inv-x", "INV-7001", "27AAPFU0939F1ZV"),
+            model_id="prebuilt-invoice",
+            model_version="2024-11-30",
+            raw_response={},
+        )
+    )
+    override_extractor(client, fake)
+
+    resp = client.post(
+        "/api/v1/processing/extract",
+        files={"file": ("zeta-inv-7001.pdf", b"%PDF-1.4 real bytes", "application/pdf")},
+    )
+
+    assert resp.status_code == 200
+    assert fake.last_request is not None
+    assert fake.last_request.content == b"%PDF-1.4 real bytes"
+    body = resp.json()
+    assert body["extraction_method"] == "azure_document_intelligence"
+    assert body["source_filename"] == "zeta-inv-7001.pdf"
+    assert body["invoice_number"] == "INV-7001"
+    assert body["vendor_name"] == "Zeta Print Co"
+
+
+def test_extract_first_invoice_from_a_vendor_is_never_straight_through(
+    client: TestClient,
+) -> None:
+    # AC-01.3: no processing history for this vendor actually exists — this isn't a
+    # threshold tuned low, it's a database of one.
+    fake = FakeExtractor(
+        ExtractionResult(
+            invoice=clean_extracted_invoice("inv-x", "INV-7001", "27AAPFU0939F1ZV"),
+            model_id="prebuilt-invoice",
+            model_version="2024-11-30",
+            raw_response={},
+        )
+    )
+    override_extractor(client, fake)
+
+    body = client.post(
+        "/api/v1/processing/extract",
+        files={"file": ("zeta-inv-7001.pdf", b"fake pdf", "application/pdf")},
+    ).json()
+
+    assert body["decision"] != "straight_through"
+    assert body["reason"] == "policy:new_vendor"
+    assert body["payment_instruction"] is None
+
+
+def test_extract_second_invoice_from_same_vendor_can_go_straight_through_with_no_bank_account(
+    client: TestClient,
+) -> None:
+    fake = FakeExtractor(
+        ExtractionResult(
+            invoice=clean_extracted_invoice("inv-x", "INV-7001", "27AAPFU0939F1ZV"),
+            model_id="prebuilt-invoice",
+            model_version="2024-11-30",
+            raw_response={},
+        )
+    )
+    override_extractor(client, fake)
+    client.post(
+        "/api/v1/processing/extract",
+        files={"file": ("first.pdf", b"fake pdf", "application/pdf")},
+    )
+
+    fake.outcome = ExtractionResult(
+        invoice=clean_extracted_invoice("inv-y", "INV-7002", "27AAPFU0939F1ZV"),
+        model_id="prebuilt-invoice",
+        model_version="2024-11-30",
+        raw_response={},
+    )
+    second = client.post(
+        "/api/v1/processing/extract",
+        files={"file": ("second.pdf", b"fake pdf", "application/pdf")},
+    ).json()
+
+    assert second["decision"] == "straight_through"
+    # FR-085: never sourced from the invoice, and there's no real vendor master yet to
+    # supply a trustworthy value — so this is honestly empty, not fabricated.
+    assert second["payment_instruction"]["vendor_bank_account"] is None
+
+
+def test_extract_maps_permanent_extraction_error_to_422(client: TestClient) -> None:
+    override_extractor(client, FakeExtractor(PermanentExtractionError("bad file")))
+
+    resp = client.post(
+        "/api/v1/processing/extract",
+        files={"file": ("bad.pdf", b"not a pdf", "application/pdf")},
+    )
+
+    assert resp.status_code == 422
+    assert "bad file" in resp.json()["detail"]
+
+
+def test_extract_maps_transient_extraction_error_to_503(client: TestClient) -> None:
+    override_extractor(client, FakeExtractor(TransientExtractionError("throttled")))
+
+    resp = client.post(
+        "/api/v1/processing/extract",
+        files={"file": ("ok.pdf", b"pdf bytes", "application/pdf")},
+    )
+
+    assert resp.status_code == 503
+    assert "throttled" in resp.json()["detail"]
+
+
+def test_extracted_invoice_appears_in_the_results_list(client: TestClient) -> None:
+    override_extractor(
+        client,
+        FakeExtractor(
+            ExtractionResult(
+                invoice=clean_extracted_invoice("inv-x", "INV-7001", None),
+                model_id="prebuilt-invoice",
+                model_version="2024-11-30",
+                raw_response={},
+            )
+        ),
+    )
+    client.post(
+        "/api/v1/processing/extract",
+        files={"file": ("no-tax-id.pdf", b"pdf bytes", "application/pdf")},
+    )
+
+    body = client.get("/api/v1/processing/results").json()
+    assert len(body) == 3
+    assert body[-1]["extraction_method"] == "azure_document_intelligence"
+
+
+def test_vendor_registry_resolves_by_tax_id_when_present() -> None:
+    registry = _VendorRegistry()
+    first = registry.resolve_or_create("Zeta Print Co", "TAX-1")
+    assert first.invoices_processed == 0
+    second = registry.resolve_or_create("Zeta Print Co (renamed)", "TAX-1")
+    assert second.vendor_id == first.vendor_id
+    assert second.invoices_processed == 1
+
+
+def test_vendor_registry_falls_back_to_name_when_no_tax_id() -> None:
+    registry = _VendorRegistry()
+    first = registry.resolve_or_create("No Tax Id Vendor", None)
+    second = registry.resolve_or_create("No Tax Id Vendor", None)
+    assert second.vendor_id == first.vendor_id
+    assert second.invoices_processed == 1
 
 
 def test_module_level_store_singleton_exists() -> None:

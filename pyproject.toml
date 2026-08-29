@@ -29,6 +29,7 @@ dev = [
     # in-test with a fake credential, no live resource involved).
     "fastapi>=0.112",
     "httpx>=0.27",
+    "python-multipart>=0.0.9",  # FastAPI's UploadFile/File() need this to parse multipart bodies
     "azure-functions>=1.20",
     "azure-functions-durable>=1.2",
     "azure-ai-documentintelligence>=1.0.0b4",
@@ -36,12 +37,17 @@ dev = [
     # ReviewAssignmentRepository placeholder (see api/dependencies.py) — no Azure
     # resource or credential involved, it's the laptop dev server.
     "uvicorn[standard]>=0.30",
+    # api/dependencies.py imports both at module level (get_azure_credential,
+    # load_dotenv()) — api.main fails to import at all without these, which every
+    # test importing it (test_review_api.py, test_processing_api.py) does. This is the
+    # credential plumbing itself, not one of the not-yet-testable Phase 2 adapters below.
+    "azure-identity>=1.17",
+    "python-dotenv>=1.0",
 ]
 # Added incrementally as later Phase 2 pieces land — kept separate because these genuinely
 # aren't exercised by any test yet (T-047 SQL repos, T-048 blob/service bus adapters) and
 # need real Azure resources or credentials to be meaningfully testable at all.
 azure = [
-    "azure-identity>=1.17",
     "azure-storage-blob>=12.20",
     "azure-servicebus>=7.12",
     "sqlalchemy>=2.0",

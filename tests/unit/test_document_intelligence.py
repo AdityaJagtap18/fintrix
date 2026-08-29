@@ -204,6 +204,38 @@ def test_extract_maps_scalar_fields_with_confidence_and_bounding_region():
     assert extraction.raw_response  # FR-024: raw response retained
 
 
+def test_extract_analyses_raw_bytes_directly_when_request_carries_content():
+    # A direct upload (no blob storage in front of it yet) sets `content` instead of a
+    # real `blob_uri` — the adapter must send those bytes to Document Intelligence
+    # directly rather than trying to dereference the (placeholder) blob_uri as a URL.
+    doc = AnalyzedDocument(doc_type="invoice", confidence=0.98, spans=[], fields={})
+    result = AnalyzeResult(
+        api_version="2024-11-30", model_id="prebuilt-invoice", content="", pages=[], documents=[doc]
+    )
+    extractor = DocumentIntelligenceExtractor(
+        endpoint="https://fake.cognitiveservices.azure.com", credential=FakeCredential()
+    )
+    captured: dict[str, object] = {}
+
+    def fake_begin_analyze_document(model_id, body, **kwargs):  # type: ignore[no-untyped-def]
+        captured["model_id"] = model_id
+        captured["body"] = body
+        return FakePoller(result)
+
+    extractor._client.begin_analyze_document = fake_begin_analyze_document  # type: ignore[method-assign]
+
+    request = ExtractionRequest(
+        document_id="doc-1",
+        blob_uri="local-upload://placeholder",
+        content_hash="hash-1",
+        page_count=1,
+        content=b"%PDF-1.4 fake bytes",
+    )
+    extractor.extract(request)
+
+    assert captured["body"].read() == b"%PDF-1.4 fake bytes"  # type: ignore[union-attr]
+
+
 def test_extract_infers_currency_from_invoice_total():
     fields = {"InvoiceTotal": currency_field(500.00, "USD")}
     doc = AnalyzedDocument(doc_type="invoice", confidence=0.9, spans=[], fields=fields)

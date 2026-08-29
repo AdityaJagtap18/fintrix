@@ -14,6 +14,7 @@ resource sets `disableLocalAuth: true`, so a key wouldn't even authenticate.
 
 from __future__ import annotations
 
+import io
 from decimal import Decimal
 from typing import Any
 
@@ -131,10 +132,13 @@ class DocumentIntelligenceExtractor(DocumentExtractor):
         )
 
     def _analyze(self, model_id: str, request: ExtractionRequest, **kwargs: Any) -> AnalyzeResult:
+        body: AnalyzeDocumentRequest | io.BytesIO = (
+            io.BytesIO(request.content)
+            if request.content is not None
+            else AnalyzeDocumentRequest(url_source=request.blob_uri)
+        )
         try:
-            poller = self._client.begin_analyze_document(
-                model_id, AnalyzeDocumentRequest(url_source=request.blob_uri), **kwargs
-            )
+            poller = self._client.begin_analyze_document(model_id, body, **kwargs)
             return poller.result()
         except ClientAuthenticationError as exc:
             raise PermanentExtractionError(f"authentication failed: {exc}") from exc

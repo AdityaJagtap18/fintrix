@@ -88,14 +88,14 @@ export function UploadInvoiceForm({ onSubmitted }: UploadInvoiceFormProps) {
   }
 
   return (
-    <details className="upload-form" open>
-      <summary>Upload an invoice</summary>
+    <details className="upload-form">
+      <summary>Manual test data entry (no OCR — for exercising specific routing outcomes)</summary>
       <p className="upload-form__notice">
-        There's no live OCR wired in yet (that needs an Azure Document Intelligence
-        resource — see spec.md), so the file below is never sent to or read by the server —
-        it stays in your browser and you can view it after processing. Fill in the fields
-        below as if you already extracted them, or load a preset to test a specific
-        routing outcome.
+        Nothing here is read from a real document — this typed-in path exists to
+        deterministically test scenarios real OCR confidence can't reliably reproduce on
+        demand (a specific low-confidence score, an intentionally new vendor). For an
+        actual invoice, use "Upload an invoice" above instead. A file picked below is
+        attached for your own reference only; its content is never read or sent anywhere.
       </p>
 
       <form onSubmit={handleSubmit}>

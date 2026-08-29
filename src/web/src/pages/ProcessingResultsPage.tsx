@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchProcessingResults, type ProcessingResultDto } from "../api/processingClient";
+import { ExtractInvoiceForm } from "../components/ExtractInvoiceForm";
 import { UploadInvoiceForm } from "../components/UploadInvoiceForm";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -68,6 +69,13 @@ export function ProcessingResultsPage() {
         needs a human in the Review queue.
       </p>
 
+      <ExtractInvoiceForm
+        onExtracted={(result, fileUrl) => {
+          setResults((prev) => [...prev, result]);
+          setFileUrls((prev) => ({ ...prev, [result.invoice_id]: fileUrl }));
+        }}
+      />
+
       <UploadInvoiceForm
         onSubmitted={(result, fileUrl) => {
           setResults((prev) => [...prev, result]);
@@ -99,6 +107,12 @@ function ResultCard({ result, fileUrl }: { result: ProcessingResultDto; fileUrl?
           {result.decision.replace(/_/g, " ")}
         </span>
       </header>
+
+      <span className={`source-badge source-badge--${result.extraction_method}`}>
+        {result.extraction_method === "azure_document_intelligence"
+          ? "Real OCR (Azure Document Intelligence)"
+          : "Manual test data"}
+      </span>
 
       {result.source_filename && (
         <p className="result-card__source">

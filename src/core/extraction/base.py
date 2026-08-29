@@ -27,6 +27,11 @@ class ExtractionRequest:
     content_hash: str
     page_count: int
     model_hint: str | None = None  # vendor-specific model override, if configured (FR-012)
+    # Set when the caller has the document's bytes in hand and there's no blob to point at
+    # yet (e.g. a direct upload ahead of Phase 2's ingestion pipeline landing it in blob
+    # storage). When present, an extractor MUST analyse these bytes directly rather than
+    # dereferencing `blob_uri`, which in that case is a placeholder, not a real location.
+    content: bytes | None = None
 
 
 @dataclass(frozen=True, slots=True)
