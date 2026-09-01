@@ -59,7 +59,7 @@ a demo and something a CFO will sign off on.
                 ▼                            ▼
         ┌───────────────┐            ┌──────────────────┐
         │ Payment       │            │ Review queue      │
-        │ instruction   │            │ (Azure SQL)       │
+        │ instruction   │            │ (Cosmos DB)       │
         │ (Service Bus) │            │ + AOAI explainer  │
         └───────┬───────┘            └────────┬─────────┘
                 │                              │
@@ -102,7 +102,7 @@ go in the architecture — see the "deliberately excluded" list in `specs/001-ap
 | Eventing | Event Grid + Service Bus | at-least-once, DLQ, ordered per-vendor sessions |
 | Orchestration | Durable Functions | checkpointed multi-step workflow, replayable |
 | Review API | Container Apps (FastAPI) | scale-to-zero, easy private networking |
-| Transactional data | Azure SQL | invoices, lines, PO/GRN, audit — relational by nature |
+| Transactional data | Cosmos DB (serverless) | invoices, lines, PO/GRN, audit — embedded per-document, partitioned by vendor; no idle-cost floor |
 | Raw payloads | Blob (`analyzed/`) | full DI JSON kept for reprocessing without re-billing |
 | Secrets | Key Vault + Managed Identity | zero keys in code or CI |
 | Telemetry | App Insights + OpenTelemetry | STP rate, cost/doc, confidence histogram |
@@ -139,7 +139,7 @@ else                             -> FULL_REVIEW (all fields shown)
 While `policy.shadow_mode` is on, all of the above is recorded on `shadow_decision` and the
 returned decision is always REVIEW.
 
-Thresholds are **per-vendor**, stored in SQL, and tuned from observed accuracy. A vendor whose
+Thresholds are **per-vendor**, stored in Cosmos DB, and tuned from observed accuracy. A vendor whose
 layout you have seen 500 times earns a lower threshold than a new one. This is the single most
 commercially persuasive feature in the whole system.
 

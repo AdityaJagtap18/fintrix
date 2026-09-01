@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from core.models import BoundingRegion, ExtractedField, FieldSource, Invoice, LineItem
+from core.models import BoundingRegion, ExtractedField, FieldSource, Invoice, LineItem, Vendor
 
 # A GSTIN that passes both the format regex and the mod-36 checksum in
 # core.validation.rules — verified against the standard algorithm, not invented.
@@ -77,6 +77,39 @@ def make_invoice(
         document_id=document_id,
         fields=fields,
         lines=lines or [],
+    )
+
+
+def make_vendor(
+    vendor_id: str = "v-acme-001",
+    *,
+    name: str = "Acme Supplies Pvt Ltd",
+    normalised_name: str = "acme supplies pvt ltd",
+    tax_id: str | None = VALID_GSTIN,
+    address: str | None = None,
+    bank_account: str | None = "HDFC0001234-000111222333",
+    currency: str | None = "INR",
+    requires_po: bool = False,
+    auto_threshold: float | None = None,
+    review_threshold: float | None = None,
+    max_auto_amount: Decimal | None = None,
+    invoices_processed: int = 50,
+    is_active: bool = True,
+) -> Vendor:
+    return Vendor(
+        vendor_id=vendor_id,
+        name=name,
+        normalised_name=normalised_name,
+        tax_id=tax_id,
+        address=address,
+        bank_account=bank_account,
+        currency=currency,
+        requires_po=requires_po,
+        auto_threshold=auto_threshold,
+        review_threshold=review_threshold,
+        max_auto_amount=max_auto_amount,
+        invoices_processed=invoices_processed,
+        is_active=is_active,
     )
 
 

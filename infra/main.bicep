@@ -11,11 +11,8 @@ param location string = 'centralindia'
 @maxLength(12)
 param baseName string = 'apauto'
 
-@description('Display name of the Entra user or group that administers Azure SQL (T-006). Customer-specific — no sensible default.')
-param sqlAdminLoginName string
-
-@description('Object ID of that Entra user or group.')
-param sqlAdminLoginObjectId string
+@description('Object ID of the Entra user or group granted Cosmos DB data-plane access for local development (T-006). Customer-specific — no sensible default.')
+param cosmosDataAccessPrincipalId string
 
 var resourceGroupName = 'rg-${baseName}-${environmentName}'
 var tags = {
@@ -88,8 +85,8 @@ module serviceBus 'modules/service-bus.bicep' = {
   }
 }
 
-module sql 'modules/sql.bicep' = {
-  name: 'sql'
+module cosmos 'modules/cosmos.bicep' = {
+  name: 'cosmos'
   scope: rg
   params: {
     baseName: baseName
@@ -97,8 +94,8 @@ module sql 'modules/sql.bicep' = {
     location: location
     tags: tags
     identityId: identity.outputs.id
-    sqlAdminLoginName: sqlAdminLoginName
-    sqlAdminLoginObjectId: sqlAdminLoginObjectId
+    principalId: identity.outputs.principalId
+    cosmosDataAccessPrincipalId: cosmosDataAccessPrincipalId
   }
 }
 
@@ -135,7 +132,7 @@ output identityClientId string = identity.outputs.clientId
 output documentIntelligenceEndpoint string = documentIntelligence.outputs.endpoint
 output storageAccountUrl string = storage.outputs.blobEndpoint
 output serviceBusNamespaceHostName string = serviceBus.outputs.namespaceHostName
-output sqlServerFqdn string = sql.outputs.serverFqdn
-output sqlDatabaseName string = sql.outputs.databaseName
+output cosmosAccountEndpoint string = cosmos.outputs.accountEndpoint
+output cosmosDatabaseName string = cosmos.outputs.databaseName
 output containerAppsEnvironmentId string = containerApps.outputs.id
 output functionAppName string = functions.outputs.name

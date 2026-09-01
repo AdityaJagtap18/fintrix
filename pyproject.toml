@@ -33,6 +33,11 @@ dev = [
     "azure-functions>=1.20",
     "azure-functions-durable>=1.2",
     "azure-ai-documentintelligence>=1.0.0b4",
+    # T-047's Cosmos repositories: testable the same way the DI adapter above is, against
+    # the real SDK's exception/response types with a fake ContainerProxy
+    # (tests/unit/fakes.py) — no live account or emulator involved. Unlike blob/service bus
+    # below, there's real, tested code exercising this.
+    "azure-cosmos>=4.7",
     # `make run-api` needs this to serve src/api locally against the in-memory
     # ReviewAssignmentRepository placeholder (see api/dependencies.py) — no Azure
     # resource or credential involved, it's the laptop dev server.
@@ -45,12 +50,11 @@ dev = [
     "python-dotenv>=1.0",
 ]
 # Added incrementally as later Phase 2 pieces land — kept separate because these genuinely
-# aren't exercised by any test yet (T-047 SQL repos, T-048 blob/service bus adapters) and
-# need real Azure resources or credentials to be meaningfully testable at all.
+# aren't exercised by any test yet (T-048 blob/service bus adapters) and need real Azure
+# resources or credentials to be meaningfully testable at all.
 azure = [
     "azure-storage-blob>=12.20",
     "azure-servicebus>=7.12",
-    "sqlalchemy>=2.0",
 ]
 
 [build-system]
@@ -66,16 +70,19 @@ addopts = "-ra --strict-markers"
 pythonpath = ["src", "."]
 
 [tool.coverage.run]
-source = ["src/core", "src/api", "src/functions"]
+source = ["src/core", "src/api", "src/functions", "src/infrastructure"]
 branch = true
 
 [tool.coverage.report]
 # Constitution Article XI: >=90% on src/core specifically, >=80% overall. Coverage.py's
 # fail_under is a single blended number, not per-path — 90 here is deliberately the
 # stricter of the two, so this run can never silently satisfy "80% overall" while core
-# itself has drifted below 90. If a future infrastructure-heavy module (real Azure SDK
-# adapters, hard to unit test meaningfully) drags the blended number down, split this into
-# two `coverage report --include` runs rather than lowering this number.
+# itself has drifted below 90. src/infrastructure (T-047's Cosmos repositories) is
+# included because it's genuinely unit-testable against the real SDK's types with a fake
+# ContainerProxy (tests/unit/fakes.py) — no live account needed — and sits comfortably
+# above the gate. If a future infrastructure module isn't meaningfully testable that way
+# (T-048's blob/service bus adapters, still azure-only and untested), split this into two
+# `coverage report --include` runs rather than lowering this number to accommodate it.
 fail_under = 90
 show_missing = true
 
@@ -138,5 +145,4 @@ forbidden_modules = [
     "functions",
     "api",
     "fastapi",
-    "sqlalchemy",
 ]

@@ -30,7 +30,7 @@ without justification reads as collecting, not engineering.
 | Review API | FastAPI on Container Apps | FR-060..067 | App Service — no scale-to-zero; AKS — operational overhead unjustified at this scale |
 | Review & admin UI | React + Vite + PDF.js | FR-063, FR-095 | Server-rendered — bounding-box overlay needs client-side canvas control |
 | Eventing | Event Grid (blob) + Service Bus (work queues) | NFR-011 | Storage Queues — no dead-lettering or sessions |
-| Transactional store | Azure SQL | FR-090, US-06 | Cosmos DB — the domain is relational (invoice↔line↔PO↔GRN↔vendor); joins matter here |
+| Transactional store | Cosmos DB (NoSQL API, serverless) | FR-090, US-06 | Azure SQL — GP_S_Gen5 still carries an always-on `minCapacity` floor in prod; Cosmos serverless has none, pure pay-per-request, better fit for this traffic profile |
 | Document store | Blob Storage with lifecycle tiering | NFR-041, NFR-031 | — |
 | Identity | Microsoft Entra ID, Managed Identity | NFR-021..023 | — |
 | Secrets | Key Vault; no secrets in CI | Article III | — |
@@ -42,11 +42,11 @@ without justification reads as collecting, not engineering.
 
 | Service | Why not |
 |---|---|
-| Cosmos DB | The domain is relational — invoice, line, PO, GRN, vendor all join. A second store beside SQL is padding with a real consistency cost. |
+| Azure SQL | Was the original choice — reversed for cost/ops (see decision table above). The "invoice/line/PO/GRN/vendor all join" concern that justified SQL turned out narrower on inspection: `three_way.match_invoice()` already receives a pre-assembled `PurchaseOrder` with its `.lines` populated — assembling that is the repository's job either way, and Cosmos's embed-PO-lines-and-goods-receipts-in-one-document pattern makes it a single point read, not a workaround. `vendor.resolve_vendor()`'s fuzzy matching already runs in Python (RapidFuzz) over the candidate pool, not a DB-side trigram index, so nothing is lost there either. What Cosmos genuinely gives up: DB-enforced foreign keys (now app-only), and cross-entity reporting aggregates become cross-partition queries — acceptable at this project's stated "thousands of rows" volume. |
 | Data Factory | Vendor master and PO ingestion is a daily CSV. A Function does it in twenty lines. |
 | AKS | Container Apps covers the scaling need. Kubernetes here is overhead with no requirement behind it. |
-| Synapse / Fabric | Reporting volume is thousands of rows. SQL answers every dashboard query. |
-| Cache for Redis | The content-hash cache lives in SQL and is read once per document. No hot path justifies it. |
+| Synapse / Fabric | Reporting volume is thousands of rows. Cross-partition Cosmos queries answer every dashboard query at this scale. |
+| Cache for Redis | The content-hash cache lives in the `documents` container, partitioned by `content_hash` itself — a point read, read once per document. No hot path justifies a second cache. |
 
 Be ready to give these answers out loud. Naming what you left out, and why, is a stronger
 signal than the length of the list of what you put in.
@@ -71,7 +71,7 @@ src/
 │   │   └── confidence_router.py RoutingPolicy, route()
 │   └── persistence/             repository protocols only — no implementations
 ├── infrastructure/              ← adapters implementing core protocols
-│   ├── repositories/            SQL implementations
+│   ├── repositories/            Cosmos DB implementations
 │   ├── blob.py, servicebus.py
 │   ├── payments/                PaymentInstructionAdapter ABC + ERP/file adapters
 │   ├── messaging/                ACS WhatsApp send and receive
@@ -92,23 +92,44 @@ rule in CI.
 
 ## 3. Data model
 
+The field lists below are the domain shape — they don't change with the storage engine.
+What changes is *how* they're stored: Cosmos DB, one container per entity below, mapped
+from these same fields. Container names, partition keys, and where SQL's join-time tables
+(`invoice_fields`, `invoice_lines`, `validation_results`, `purchase_order_lines`,
+`goods_receipts`) become embedded arrays instead of separate joined tables:
+
+| Container | Partition key | Embeds |
+|---|---|---|
+| `vendors` | `/vendor_id` | — |
+| `vendor_tax_ids` (lookup-only, reproduces global `tax_id` uniqueness) | `/tax_id` | — |
+| `documents` | `/content_hash` | — |
+| `invoices` | `/vendor_id` (sentinel `"unresolved"` pre-resolution) | `invoice_fields`, `invoice_lines`, `validation_results` |
+| `purchase_orders` | `/vendor_id` | `purchase_order_lines`, `goods_receipts` |
+| `review_assignments` | `/invoice_id` | — |
+| `corrections` | `/invoice_id` | — |
+| `audit_log` | `/entity_id` | — |
+| `model_registry` | `/model_id` | — |
+
+Defined in `infra/modules/cosmos.bicep`, which also carries the per-container RBAC.
+
 ### `vendors`
-`vendor_id` PK · `name` · `normalised_name` (indexed for fuzzy search) · `tax_id` (unique) ·
+`vendor_id` PK · `name` · `normalised_name` · `tax_id` (unique, via `vendor_tax_ids`) ·
 `address` · `bank_account` · `currency` · `requires_po` · `auto_threshold` ·
 `review_threshold` · `max_auto_amount` · `invoices_processed` · `is_active` · timestamps
 
 ### `documents`
-`document_id` PK · `content_hash` (indexed) · `source` (email/api/blob) · `original_filename` ·
-`sender` · `blob_uri` · `page_count` · `received_at` · `parent_document_id` (nullable, for
-splits) · `page_range` · `status`
+`document_id` PK · `content_hash` (partition key — FR-003's dedupe lookup is a point read) ·
+`source` (email/api/blob) · `original_filename` · `sender` · `blob_uri` · `page_count` ·
+`received_at` · `parent_document_id` (nullable, for splits) · `page_range` · `status`
 
 ### `invoices`
-`invoice_id` PK · `document_id` FK · `vendor_id` FK nullable · `invoice_number` ·
-`invoice_date` · `due_date` · `po_number` · `currency` · `subtotal` · `tax_total` · `total` ·
-`amount_due` · `state` · `routing_decision` · `routing_reason` · `overall_confidence` ·
-`model_id` · `model_version` · `extracted_at` · `posted_at`
-**Unique constraint:** `(vendor_id, invoice_number)` where `vendor_id` is not null — this is
-BR-04 enforced at the database level, not only in code.
+`invoice_id` PK · `document_id` FK · `vendor_id` (partition key) FK nullable ·
+`invoice_number` · `invoice_date` · `due_date` · `po_number` · `currency` · `subtotal` ·
+`tax_total` · `total` · `amount_due` · `state` · `routing_decision` · `routing_reason` ·
+`overall_confidence` · `model_id` · `model_version` · `extracted_at` · `posted_at`
+**Unique key policy:** `/invoice_number`, scoped to the `vendor_id` partition — BR-04
+enforced at the database level, not only in code, same as the SQL filtered unique index it
+replaces.
 
 ### `invoice_fields`
 `id` PK · `invoice_id` FK · `field_name` · `value` · `confidence` · `page` · `polygon` (JSON) ·
@@ -124,7 +145,10 @@ BR-04 enforced at the database level, not only in code.
 
 ### `purchase_orders` / `purchase_order_lines` / `goods_receipts`
 Mirrored from the customer's ERP export. PO lines carry `quantity_ordered`,
-`quantity_received`, `quantity_invoiced`, `unit_price`, `product_code`, `is_closed`.
+`quantity_received`, `quantity_invoiced`, `unit_price`, `product_code`, `is_closed`. Lines
+and goods receipts are embedded in the `purchase_orders` document (partitioned by
+`vendor_id`), so `three_way.match_invoice()`'s already-assembled `PurchaseOrder` object is a
+single point read, not a join.
 
 ### `review_assignments`
 `invoice_id` PK · `claimed_by` · `claimed_at` · `expires_at` · `submitted_at` · `outcome`
@@ -134,9 +158,11 @@ Mirrored from the customer's ERP export. PO lines carry `quantity_ordered`,
 `model_version` · `corrected_by` · `corrected_at` · `used_in_training_run` nullable
 
 ### `audit_log` (append-only)
-`id` PK · `entity_type` · `entity_id` · `action` · `actor` · `actor_role` · `before` (JSON) ·
-`after` (JSON) · `reason` · `occurred_at`
-**Enforcement:** application role has INSERT and SELECT only; no UPDATE or DELETE grant.
+`id` PK · `entity_type` · `entity_id` (partition key) · `action` · `actor` · `actor_role` ·
+`before` (JSON) · `after` (JSON) · `reason` · `occurred_at`
+**Enforcement:** a custom Cosmos RBAC role (`audit-log-writer` in `cosmos.bicep`) grants the
+application identity `create` and `read` data actions only — no `replace`, `upsert`, or
+`delete` — the same guarantee the SQL `DENY UPDATE/DELETE` grant gave.
 
 ### `model_registry`
 `model_id` PK · `alias` (prod/candidate) · `trained_at` · `training_run_id` · `macro_f1` ·

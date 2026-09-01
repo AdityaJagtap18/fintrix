@@ -22,7 +22,7 @@
 - **T-004** `[P]` Bicep: Document Intelligence account with `disableLocalAuth: true`, RBAC role assignment to the identity. **Req:** Article III.
   *Done when:* a key-based call returns 401 and a token-based call returns 200.
 - **T-005** `[P]` Bicep: Service Bus with queues `invoice-extract`, `invoice-review`, `erp-post`, dead-lettering enabled. **Req:** AC-11.3.
-- **T-006** `[P]` Bicep: Azure SQL with Entra-only authentication, Log Analytics, App Insights.
+- **T-006** `[P]` Bicep: Cosmos DB with Entra-only authentication (`disableLocalAuth`), Log Analytics, App Insights.
 - **T-007** `[P]` Bicep: Container Apps environment, Functions Premium plan, both with the user-assigned identity.
 - **T-008** Entra app registration with federated credentials; GitHub environments `dev` and `production` with required reviewers on `production`. **Req:** Article III.
   *Done when:* a workflow authenticates to Azure with no stored secret.
@@ -73,9 +73,9 @@
 - **T-044** `[P]` Content-hash cache checked before any billed call. **Req:** FR-003, Article XII.
   *Done when:* re-submitting an identical file records zero extraction charges.
 - **T-045** `[P]` Blank and separator page filter before extraction. **Req:** NFR-042.
-- **T-046** SQL schema and migrations for every table in plan §3, including the unique constraint on `(vendor_id, invoice_number)` and INSERT/SELECT-only grants on `audit_log`. **Req:** FR-090, AC-10.2.
-  *Done when:* an UPDATE against `audit_log` as the application role is rejected by the database.
-- **T-047** `[P]` SQL repository implementations of the Phase 1 protocols.
+- **T-046** Cosmos DB containers, partition keys, unique key policies, and RBAC role definitions for every entity in plan §3, including the unique key policy on `invoices` (`/invoice_number`, scoped to the `vendor_id` partition) and the create/read-only `audit-log-writer` role on `audit_log`. **Req:** FR-090, AC-10.2.
+  *Done when:* a replace or delete against `audit_log` as the application identity is rejected by Cosmos RBAC.
+- **T-047** `[P]` Cosmos DB repository implementations of the Phase 1 protocols.
 - **T-048** `[P]` Blob and Service Bus adapters using Managed Identity only.
 - **T-049** Ingestion triggers: Event Grid blob trigger and authenticated HTTP upload; hash, dedupe, page count, quarantine unopenable files. **Req:** FR-001..005.
 - **T-050** Mailbox ingestion via a Logic App writing attachments to `raw/`. **Req:** FR-001.

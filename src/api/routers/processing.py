@@ -277,8 +277,10 @@ def _invoice_from_request(request: ProcessInvoiceRequest, invoice_id: str) -> In
 
 
 class _VendorRegistry:
-    """Stands in for the vendor master (T-047 hasn't landed — there's no real one yet).
-    Keyed by tax ID when Document Intelligence extracted one, else by vendor name.
+    """Stands in for the vendor master. T-047's Cosmos `CosmosVendorRepository` exists now,
+    but this demo/dev router (see module docstring) deliberately stays in-memory: wiring
+    extraction results through to real persistence is ingestion's job (T-049+), not this
+    router's. Keyed by tax ID when Document Intelligence extracted one, else by vendor name.
 
     A vendor seen for the first time genuinely has zero processing history — there is no
     database of prior invoices to check — so it starts at `invoices_processed=0` and is

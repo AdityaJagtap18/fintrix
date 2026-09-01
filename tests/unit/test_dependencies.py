@@ -11,7 +11,31 @@ import pytest
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from fastapi import HTTPException
 
-from api.dependencies import _DocumentIntelligenceProvider, get_azure_credential
+import api.dependencies as dependencies
+from api.dependencies import (
+    InMemoryReviewAssignmentRepository,
+    _CosmosRepositoryProvider,
+    _DocumentIntelligenceProvider,
+    get_azure_credential,
+    get_review_repo,
+)
+from infrastructure.repositories.review_assignments import CosmosReviewAssignmentRepository
+from tests.unit.fakes import FakeContainer, FakeCosmosClient, FakeDatabase
+
+_ALL_CONTAINERS = (
+    "vendors",
+    "vendor_tax_ids",
+    "documents",
+    "invoices",
+    "purchase_orders",
+    "review_assignments",
+    "audit_log",
+)
+
+
+def _fake_build_client(*_args: object, **_kwargs: object) -> FakeCosmosClient:
+    containers = {name: FakeContainer(partition_key_path="/id") for name in _ALL_CONTAINERS}
+    return FakeCosmosClient(database=FakeDatabase(containers=containers))
 
 
 @pytest.fixture
@@ -75,3 +99,49 @@ def test_extractor_provider_builds_once_and_reuses_the_same_instance(
     second = provider.get()
 
     assert first is second
+
+
+def test_cosmos_provider_raises_503_when_endpoint_is_not_configured(
+    clean_azure_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("COSMOS_ENDPOINT", raising=False)
+    provider = _CosmosRepositoryProvider()
+
+    with pytest.raises(HTTPException) as exc_info:
+        provider.vendors()
+
+    assert exc_info.value.status_code == 503
+
+
+def test_cosmos_provider_builds_the_database_client_once_and_reuses_it(
+    clean_azure_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COSMOS_ENDPOINT", "https://fake.documents.azure.com")
+    monkeypatch.setenv("COSMOS_DATABASE", "db-fake")
+    monkeypatch.setattr(dependencies, "build_client", _fake_build_client)
+    provider = _CosmosRepositoryProvider()
+
+    provider.vendors()
+    provider.invoices()
+
+    assert provider._database is not None  # one client built, shared by every repo
+
+
+def test_get_review_repo_falls_back_to_in_memory_when_cosmos_not_configured(
+    clean_azure_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("COSMOS_ENDPOINT", raising=False)
+    monkeypatch.setattr(dependencies, "_cosmos_provider", _CosmosRepositoryProvider())
+
+    assert isinstance(get_review_repo(), InMemoryReviewAssignmentRepository)
+
+
+def test_get_review_repo_uses_cosmos_when_configured(
+    clean_azure_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COSMOS_ENDPOINT", "https://fake.documents.azure.com")
+    monkeypatch.setenv("COSMOS_DATABASE", "db-fake")
+    monkeypatch.setattr(dependencies, "build_client", _fake_build_client)
+    monkeypatch.setattr(dependencies, "_cosmos_provider", _CosmosRepositoryProvider())
+
+    assert isinstance(get_review_repo(), CosmosReviewAssignmentRepository)

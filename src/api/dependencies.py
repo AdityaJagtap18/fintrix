@@ -1,13 +1,17 @@
 """Dependency injection wiring for the FastAPI app.
 
-Three things here are explicit placeholders, not real implementations, and each is called
+Two things here are explicit placeholders, not real implementations, and each is called
 out at the point it's used so nobody mistakes it for finished work:
 
 * `InMemoryReviewAssignmentRepository` — satisfies `ReviewAssignmentRepository`
   structurally so the API layer and its tests can run today, but state doesn't survive a
-  restart and there's no real concurrency control. T-047 (SQLAlchemy/Azure SQL
-  repositories) replaces this; nothing above `get_review_repo()` needs to change when it
-  does, since routers depend on the Protocol, not this class.
+  restart and there's no real concurrency control. T-047's Cosmos DB repositories
+  (`infrastructure.repositories.*`) have landed; `get_review_repo()` now returns the real
+  one whenever `COSMOS_ENDPOINT` is set, and this in-memory class only as the documented
+  zero-config local-dev fallback otherwise. `get_vendor_repo()`/`get_invoice_repo()`/
+  `get_purchase_order_repo()`/`get_audit_log_writer()` have no such fallback — like
+  `get_document_intelligence_extractor()` below, they fail loud with 503 if Cosmos isn't
+  configured rather than growing a second fake.
 * `get_current_reviewer` — reads an `X-Reviewer` header instead of validating an Entra ID
   bearer token. T-062 replaces this with real JWT validation (NFR-021/022). Every caller
   of this dependency needs revisiting before this serves anything but a laptop.
@@ -26,13 +30,27 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from azure.core.credentials import TokenCredential
+from azure.cosmos.database import DatabaseProxy
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from dotenv import load_dotenv
 from fastapi import Header, HTTPException, status
 
 from core.extraction.document_intelligence import DocumentIntelligenceExtractor
 from core.models import ReviewAssignment
-from core.persistence import ReviewAssignmentRepository
+from core.persistence import (
+    AuditLogWriter,
+    DuplicateLookup,
+    InvoiceRepository,
+    PurchaseOrderLookup,
+    ReviewAssignmentRepository,
+    VendorRepository,
+)
+from infrastructure.cosmos import build_client
+from infrastructure.repositories.audit_log import CosmosAuditLogWriter
+from infrastructure.repositories.invoices import CosmosInvoiceRepository
+from infrastructure.repositories.purchase_orders import CosmosPurchaseOrderRepository
+from infrastructure.repositories.review_assignments import CosmosReviewAssignmentRepository
+from infrastructure.repositories.vendors import CosmosVendorRepository
 
 load_dotenv()
 
@@ -63,8 +81,91 @@ class InMemoryReviewAssignmentRepository:
 _review_repo = InMemoryReviewAssignmentRepository()
 
 
+class _CosmosRepositoryProvider:
+    """Built once per process — same reasoning as `_DocumentIntelligenceProvider` below:
+    constructing a client is cheap, re-authenticating on every call isn't."""
+
+    def __init__(self) -> None:
+        self._database: DatabaseProxy | None = None
+        self._vendors: CosmosVendorRepository | None = None
+        self._invoices: CosmosInvoiceRepository | None = None
+        self._purchase_orders: CosmosPurchaseOrderRepository | None = None
+        self._audit_log: CosmosAuditLogWriter | None = None
+        self._review_assignments: CosmosReviewAssignmentRepository | None = None
+
+    def _get_database(self) -> DatabaseProxy:
+        if self._database is None:
+            endpoint = os.environ.get("COSMOS_ENDPOINT")
+            if not endpoint:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="COSMOS_ENDPOINT is not set — see .env.example",
+                )
+            database_name = os.environ.get("COSMOS_DATABASE", "")
+            client = build_client(endpoint, get_azure_credential())
+            self._database = client.get_database_client(database_name)
+        return self._database
+
+    def vendors(self) -> CosmosVendorRepository:
+        if self._vendors is None:
+            self._vendors = CosmosVendorRepository(self._get_database())
+        return self._vendors
+
+    def invoices(self) -> CosmosInvoiceRepository:
+        if self._invoices is None:
+            self._invoices = CosmosInvoiceRepository(self._get_database())
+        return self._invoices
+
+    def purchase_orders(self) -> CosmosPurchaseOrderRepository:
+        if self._purchase_orders is None:
+            self._purchase_orders = CosmosPurchaseOrderRepository(self._get_database())
+        return self._purchase_orders
+
+    def audit_log(self) -> CosmosAuditLogWriter:
+        if self._audit_log is None:
+            self._audit_log = CosmosAuditLogWriter(self._get_database())
+        return self._audit_log
+
+    def review_assignments(self) -> ReviewAssignmentRepository:
+        # The one repository with an established in-memory fallback — see module
+        # docstring. Checked per call (not cached) since it's just an env lookup and must
+        # keep reflecting the environment, not whatever was true the first time this ran.
+        if not os.environ.get("COSMOS_ENDPOINT"):
+            return _review_repo
+        if self._review_assignments is None:
+            self._review_assignments = CosmosReviewAssignmentRepository(self._get_database())
+        return self._review_assignments
+
+
+_cosmos_provider = _CosmosRepositoryProvider()
+
+
 def get_review_repo() -> ReviewAssignmentRepository:
-    return _review_repo
+    return _cosmos_provider.review_assignments()
+
+
+def get_vendor_repo() -> VendorRepository:
+    return _cosmos_provider.vendors()
+
+
+def get_invoice_repo() -> InvoiceRepository:
+    return _cosmos_provider.invoices()
+
+
+def get_duplicate_lookup() -> DuplicateLookup:
+    # Same underlying object as get_invoice_repo() — CosmosInvoiceRepository satisfies
+    # both Protocols (see infrastructure/repositories/invoices.py) — exposed separately so
+    # callers that only need DuplicateLookup (core.validation.rules.ValidationContext)
+    # depend on that narrower Protocol, not the wider InvoiceRepository.
+    return _cosmos_provider.invoices()
+
+
+def get_purchase_order_repo() -> PurchaseOrderLookup:
+    return _cosmos_provider.purchase_orders()
+
+
+def get_audit_log_writer() -> AuditLogWriter:
+    return _cosmos_provider.audit_log()
 
 
 def get_current_reviewer(x_reviewer: Annotated[str | None, Header()] = None) -> str:
