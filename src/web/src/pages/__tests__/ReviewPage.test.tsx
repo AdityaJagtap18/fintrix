@@ -15,10 +15,32 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// GET /api/v1/processing/results/{id} — the first call ReviewPage makes, before it ever
+// claims anything. Fields are empty (FieldEditor's list wrapper renders regardless);
+// issues needs at least one failed entry, or IssuePanel renders its "no failures" text
+// instead of a role="list" — these tests assert on that list existing.
+function detailResponse(): Response {
+  return jsonResponse({
+    invoice_id: "inv-demo-1",
+    document_id: "doc-demo-1",
+    vendor_name: "Acme Supplies Pvt Ltd",
+    invoice_number: "INV-1042",
+    pdf_url: null,
+    fields: [],
+    issues: [{ rule_id: "BR-03", severity: "hard", passed: false, message: "total mismatch", fields: [] }],
+  });
+}
+
 describe("ReviewPage", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
+  let onSubmitted: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    onSubmitted = vi.fn();
+    // App.tsx is what gates sign-in now — ReviewPage only ever renders once someone's
+    // already signed in, so every test here starts pre-authenticated.
+    sessionStorage.setItem("invoice-iq-token", "test-token");
+    sessionStorage.setItem("invoice-iq-role", "ap");
     fetchMock = vi.fn();
     // Base fallback for calls beyond what a test explicitly queues — most notably the
     // fire-and-forget `release` call ReviewPage's unmount cleanup makes, which otherwise
@@ -36,14 +58,26 @@ describe("ReviewPage", () => {
     // hits the real global fetch with a relative URL and blows up outside any test.
     cleanup();
     vi.unstubAllGlobals();
+    sessionStorage.clear();
+  });
+
+  it("prompts to pick an invoice when none is selected, without loading anything", () => {
+    render(<ReviewPage invoiceId={null} onSubmitted={onSubmitted} />);
+
+    expect(
+      screen.getByText("Pick an invoice from Processing Results to review it."),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("shows the claim conflict message when the invoice is already claimed", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ detail: { message: "already claimed", held_by: "rajesh" } }, 409),
-    );
+    fetchMock
+      .mockResolvedValueOnce(detailResponse())
+      .mockResolvedValueOnce(
+        jsonResponse({ detail: { message: "already claimed", held_by: "rajesh" } }, 409),
+      );
 
-    render(<ReviewPage />);
+    render(<ReviewPage invoiceId="inv-demo-1" onSubmitted={onSubmitted} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("claim-status-message")).toHaveTextContent(
@@ -53,21 +87,25 @@ describe("ReviewPage", () => {
   });
 
   it("renders the field editor and issue panel once the claim succeeds", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
-    );
+    fetchMock
+      .mockResolvedValueOnce(detailResponse())
+      .mockResolvedValueOnce(
+        jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
+      );
 
-    render(<ReviewPage />);
+    render(<ReviewPage invoiceId="inv-demo-1" onSubmitted={onSubmitted} />);
 
     await waitFor(() => {
       expect(screen.getByRole("list", { name: "Extracted fields" })).toBeInTheDocument();
     });
     expect(screen.getByRole("list", { name: "Validation issues" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Forward for acceptance" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
   });
 
-  it("submits an approval and shows the confirmation message", async () => {
+  it("submits a forward and sends the reviewer straight to Processed Invoices", async () => {
     fetchMock
+      .mockResolvedValueOnce(detailResponse())
       .mockResolvedValueOnce(
         jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
       )
@@ -76,37 +114,65 @@ describe("ReviewPage", () => {
           invoice_id: "inv-demo-1",
           claimed_by: "priya",
           submitted_at: "2026-01-01T00:05:00",
-          outcome: "approved",
+          outcome: "forwarded",
         }),
       );
 
     const user = userEvent.setup();
-    render(<ReviewPage />);
+    render(<ReviewPage invoiceId="inv-demo-1" onSubmitted={onSubmitted} />);
 
-    const approveButton = await screen.findByRole("button", { name: "Approve" });
-    await user.click(approveButton);
+    const forwardButton = await screen.findByRole("button", { name: "Forward for acceptance" });
+    await user.click(forwardButton);
 
     await waitFor(() => {
-      expect(screen.getByTestId("submitted-message")).toHaveTextContent("Review approved");
+      expect(onSubmitted).toHaveBeenCalledTimes(1);
     });
 
-    const submitCall = fetchMock.mock.calls[1];
+    const submitCall = fetchMock.mock.calls[2];
     expect(submitCall[0]).toBe("/api/v1/review/inv-demo-1/submit");
-    expect(JSON.parse(submitCall[1].body)).toEqual({ outcome: "approved" });
+    expect(JSON.parse(submitCall[1].body)).toEqual({ outcome: "forwarded" });
+    expect(submitCall[1].headers.Authorization).toBe("Bearer test-token");
+  });
+
+  it("submits a rejection and sends the reviewer straight to Processed Invoices", async () => {
+    fetchMock
+      .mockResolvedValueOnce(detailResponse())
+      .mockResolvedValueOnce(
+        jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          invoice_id: "inv-demo-1",
+          claimed_by: "priya",
+          submitted_at: "2026-01-01T00:05:00",
+          outcome: "rejected",
+        }),
+      );
+
+    const user = userEvent.setup();
+    render(<ReviewPage invoiceId="inv-demo-1" onSubmitted={onSubmitted} />);
+
+    const rejectButton = await screen.findByRole("button", { name: "Reject" });
+    await user.click(rejectButton);
+
+    await waitFor(() => {
+      expect(onSubmitted).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("shows an error message if submission fails without losing the editor state", async () => {
     fetchMock
+      .mockResolvedValueOnce(detailResponse())
       .mockResolvedValueOnce(
         jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
       )
       .mockResolvedValueOnce(jsonResponse({ detail: "not claimed" }, 403));
 
     const user = userEvent.setup();
-    render(<ReviewPage />);
+    render(<ReviewPage invoiceId="inv-demo-1" onSubmitted={onSubmitted} />);
 
-    const approveButton = await screen.findByRole("button", { name: "Approve" });
-    await user.click(approveButton);
+    const forwardButton = await screen.findByRole("button", { name: "Forward for acceptance" });
+    await user.click(forwardButton);
 
     await waitFor(() => {
       expect(screen.getByTestId("submit-error")).toBeInTheDocument();
@@ -115,13 +181,29 @@ describe("ReviewPage", () => {
     expect(screen.getByRole("list", { name: "Extracted fields" })).toBeInTheDocument();
   });
 
-  it("releases the claim with keepalive on pagehide, not just on unmount", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
-    );
+  it("shows an inline message when the session has expired, rather than redirecting", async () => {
+    fetchMock
+      .mockResolvedValueOnce(detailResponse())
+      .mockResolvedValueOnce(jsonResponse({ detail: "sign-in required" }, 401));
 
-    render(<ReviewPage />);
-    await screen.findByRole("button", { name: "Approve" });
+    render(<ReviewPage invoiceId="inv-demo-1" onSubmitted={onSubmitted} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("claim-status-message")).toHaveTextContent(
+        "Your session has expired",
+      );
+    });
+  });
+
+  it("releases the claim with keepalive on pagehide, not just on unmount", async () => {
+    fetchMock
+      .mockResolvedValueOnce(detailResponse())
+      .mockResolvedValueOnce(
+        jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
+      );
+
+    render(<ReviewPage invoiceId="inv-demo-1" onSubmitted={onSubmitted} />);
+    await screen.findByRole("button", { name: "Forward for acceptance" });
 
     fetchMock.mockClear();
     window.dispatchEvent(new Event("pagehide"));

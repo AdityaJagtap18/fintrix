@@ -97,6 +97,12 @@ class FakeContainer:
         except KeyError:
             raise CosmosResourceNotFoundError(message=f"item {item!r} not found") from None
 
+    def delete_item(self, item: str, partition_key: Any) -> None:
+        try:
+            del self._items[(partition_key, item)]
+        except KeyError:
+            raise CosmosResourceNotFoundError(message=f"item {item!r} not found") from None
+
     def query_items(
         self,
         query: str,

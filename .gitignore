@@ -18,6 +18,9 @@ build/
 *.local.env
 .env.*
 !.env.example
+# AP/Admin credentials workbook (api/auth.py, scripts/manage_credentials.py) — bcrypt
+# hashes, not plaintext, but still never belongs in version control.
+data/credentials.xlsx
 
 # Azure / Bicep
 *.bicepparam.local

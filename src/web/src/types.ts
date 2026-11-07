@@ -47,7 +47,9 @@ export interface ValidationIssue {
 export interface ReviewInvoice {
   invoiceId: string;
   documentId: string;
-  pdfUrl: string;
+  // null when this invoice has no real file behind it (manual entry, seeded demo data) —
+  // only a real Document Intelligence upload has bytes to render.
+  pdfUrl: string | null;
   vendorName: string | null;
   invoiceNumber: string | null;
   fields: ExtractedField[];
@@ -55,7 +57,10 @@ export interface ReviewInvoice {
   issues: ValidationIssue[];
 }
 
-export type ReviewOutcome = "approved" | "rejected";
+// "approved" is set only by an admin accepting a forwarded invoice (api/routers/admin.py)
+// — AP itself can only submit "rejected" or "forwarded" (api/routers/review.py rejects
+// "approved" from AP with a 403).
+export type ReviewOutcome = "approved" | "rejected" | "forwarded";
 
 // These two mirror src/api/routers/review.py's Pydantic response models *exactly*,
 // snake_case included — FastAPI serializes Pydantic field names as-is, and there is no

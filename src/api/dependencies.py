@@ -40,6 +40,7 @@ from core.models import ReviewAssignment
 from core.persistence import (
     AuditLogWriter,
     DuplicateLookup,
+    InvoiceAdmin,
     InvoiceRepository,
     PurchaseOrderLookup,
     ReviewAssignmentRepository,
@@ -157,6 +158,13 @@ def get_duplicate_lookup() -> DuplicateLookup:
     # both Protocols (see infrastructure/repositories/invoices.py) — exposed separately so
     # callers that only need DuplicateLookup (core.validation.rules.ValidationContext)
     # depend on that narrower Protocol, not the wider InvoiceRepository.
+    return _cosmos_provider.invoices()
+
+
+def get_invoice_admin() -> InvoiceAdmin:
+    # Same underlying object again — see get_duplicate_lookup()'s comment. Narrower
+    # Protocol for api/routers/processing.py's delete endpoint, which has no business
+    # depending on get()/save()/get_by_content_hash() to do one thing: delete.
     return _cosmos_provider.invoices()
 
 

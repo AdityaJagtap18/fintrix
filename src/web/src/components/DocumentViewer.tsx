@@ -1,6 +1,7 @@
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
+import { authHeader } from "../api/authClient";
 import { polygonToOverlayRect } from "../lib/geometry";
 import type { ExtractedField } from "../types";
 
@@ -12,7 +13,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 const RENDER_SCALE = 1.5;
 
 interface DocumentViewerProps {
-  pdfUrl: string;
+  pdfUrl: string | null;
   fields: ExtractedField[];
   selectedFieldName: string | null;
 }
@@ -37,11 +38,17 @@ export function DocumentViewer({ pdfUrl, fields, selectedFieldName }: DocumentVi
   }, [selectedField]);
 
   useEffect(() => {
+    if (!pdfUrl) return;
     let cancelled = false;
 
     async function render() {
       try {
-        const doc = await pdfjsLib.getDocument(pdfUrl).promise;
+        // GET /results/{id}/file requires a session same as everything else now —
+        // pdf.js's own internal fetch doesn't know to send one unless told to.
+        const doc = await pdfjsLib.getDocument({
+          url: pdfUrl as string,
+          httpHeaders: authHeader() as Record<string, string>,
+        }).promise;
         if (cancelled) return;
         setPageCount(doc.numPages);
 
@@ -74,6 +81,15 @@ export function DocumentViewer({ pdfUrl, fields, selectedFieldName }: DocumentVi
     return (
       <div role="alert" className="document-viewer document-viewer--error">
         Could not render document: {error}
+      </div>
+    );
+  }
+
+  if (!pdfUrl) {
+    return (
+      <div className="document-viewer document-viewer--empty">
+        No document on file for this invoice — it was entered manually, not extracted from
+        a real file.
       </div>
     );
   }

@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from azure.cosmos.database import DatabaseProxy
-from azure.cosmos.exceptions import CosmosResourceNotFoundError
+from azure.cosmos.exceptions import CosmosResourceExistsError, CosmosResourceNotFoundError
 
 from core.models import Vendor
 from infrastructure.repositories.serialization import decimal_from_item, decimal_to_item
@@ -100,7 +100,17 @@ class CosmosVendorRepository:
     def _claim_tax_id(self, tax_id: str, vendor_id: str) -> None:
         owner = self._resolve_tax_id(tax_id)
         if owner is None:
-            self._tax_ids.create_item({"id": tax_id, "tax_id": tax_id, "vendor_id": vendor_id})
-        elif owner != vendor_id:
+            try:
+                self._tax_ids.create_item({"id": tax_id, "tax_id": tax_id, "vendor_id": vendor_id})
+            except CosmosResourceExistsError:
+                # Lost a race: two concurrent save() calls both saw owner is None (e.g.
+                # the same vendor extracted from two files in one batch upload) and both
+                # tried to claim the same tax_id. Re-resolve and fall through to the same
+                # owner check below instead of leaking the raw Cosmos conflict — whoever
+                #'s create_item actually landed first is the real owner now.
+                owner = self._resolve_tax_id(tax_id)
+            else:
+                return
+        if owner != vendor_id:
             raise ValueError(f"tax id {tax_id!r} is already claimed by vendor {owner!r}")
         # else: this vendor already owns it — nothing to do.

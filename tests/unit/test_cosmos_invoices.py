@@ -57,24 +57,26 @@ def test_unresolved_vendor_id_round_trips_as_none():
     assert repo.get(invoice.invoice_id).vendor_id is None
 
 
-def test_get_by_content_hash_resolves_through_documents():
+def test_get_by_content_hash_finds_a_matching_invoice_across_partitions():
     repo = _make_repo()
-    # documents' item id is the content_hash itself (see invoices.py's comment) —
-    # document_id is just a regular property here.
-    repo._documents.create_item(
-        {
-            "id": "hash-abc",
-            "content_hash": "hash-abc",
-            "document_id": "doc-1",
-            "blob_uri": "raw/doc-1.pdf",
-        }
-    )
     invoice = make_invoice(invoice_id="inv-1", document_id="doc-1")
     invoice.vendor_id = "v-1"
+    invoice.content_hash = "hash-abc"
     repo.save(invoice)
 
     assert repo.get_by_content_hash("hash-abc") == invoice
     assert repo.get_by_content_hash("hash-unknown") is None
+
+
+def test_get_by_content_hash_ignores_invoices_with_no_hash_recorded():
+    # Manual entry / seeded demo invoices never had a source file — content_hash is None
+    # on those, and None must never accidentally match a query for content_hash=None.
+    repo = _make_repo()
+    invoice = make_invoice(invoice_id="inv-1")
+    invoice.vendor_id = "v-1"
+    repo.save(invoice)
+
+    assert repo.get_by_content_hash("hash-abc") is None
 
 
 def test_exact_duplicate_exists_resolves_tax_id_to_vendor_then_checks_invoice_number():
@@ -145,3 +147,19 @@ def test_saving_a_second_invoice_with_a_duplicate_invoice_number_in_the_same_par
 
     with pytest.raises(CosmosResourceExistsError):
         repo.save(second)
+
+
+def test_delete_removes_the_invoice():
+    repo = _make_repo()
+    invoice = make_invoice(invoice_id="inv-1")
+    invoice.vendor_id = "v-1"
+    repo.save(invoice)
+
+    repo.delete("inv-1")
+
+    assert repo.get("inv-1") is None
+
+
+def test_delete_is_idempotent_for_an_invoice_id_that_was_never_saved():
+    repo = _make_repo()
+    repo.delete("inv-does-not-exist")  # must not raise

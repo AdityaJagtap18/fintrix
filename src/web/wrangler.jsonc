@@ -1,0 +1,12 @@
+{
+  "name": "invoice-iq",
+  "compatibility_date": "2026-08-26",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [
+    { "pattern": "invoice-iq.mitraedge.com", "custom_domain": true }
+  ],
+  "workers_dev": true
+}

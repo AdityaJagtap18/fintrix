@@ -54,18 +54,25 @@ def build_payment_instruction(
     *,
     approved_by: str,
     now: datetime,
+    human_approved: bool = False,
 ) -> PaymentInstruction:
     """Assemble a `PaymentInstruction` for an invoice that has actually been approved.
 
-    Only ever called for a `STRAIGHT_THROUGH` (system-approved) or `REVIEW`-then-approved
-    (human-approved) outcome — never speculatively, and never for a `shadow_mode` result,
-    whose `decision` is always `REVIEW` regardless of what would have happened
-    (`RoutingResult.shadow_decision` is the one to check before calling this in that case).
+    Only ever called for a `STRAIGHT_THROUGH` (system-approved) routing_result, or for
+    any other decision with `human_approved=True` — an admin accepting an invoice AP
+    forwarded (api/routers/admin.py), say. `routing_result.decision` in that second case
+    still reflects the router's *original* call (review/exception/...), not the human
+    override; `human_approved` is the explicit signal that this is intentional, not a
+    caller accidentally handing off an invoice nobody actually approved. Never called for
+    a `shadow_mode` result, whose `decision` is always `REVIEW` regardless of what would
+    have happened (`RoutingResult.shadow_decision` is the one to check before calling this
+    in that case).
     """
-    if routing_result.decision != RoutingDecision.STRAIGHT_THROUGH:
+    if routing_result.decision != RoutingDecision.STRAIGHT_THROUGH and not human_approved:
         raise ValueError(
             f"cannot build a payment instruction for a routing decision that is not "
-            f"approved (STRAIGHT_THROUGH): got {routing_result.decision}"
+            f"approved (STRAIGHT_THROUGH) unless human_approved=True: got "
+            f"{routing_result.decision}"
         )
 
     amount = invoice.amount_due if invoice.amount_due is not None else invoice.total

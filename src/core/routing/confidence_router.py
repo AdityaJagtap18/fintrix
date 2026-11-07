@@ -7,6 +7,7 @@ same call computes the real decision whether or not it is ever acted on.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from core.models import (
     Invoice,
@@ -45,6 +46,10 @@ class RoutingPolicy:
     review_threshold: float = 0.70
     line_threshold: float = 0.80
     min_vendor_history: int = 1
+    # Hold-for-verification ceiling: an invoice over this amount is never auto-approved,
+    # confidence notwithstanding. A vendor's own `max_auto_amount`, when set, still wins
+    # (a lower per-vendor ceiling is meaningful; this is the floor everyone gets).
+    max_auto_amount: Decimal | None = Decimal("1000000")
     shadow_mode: bool = True
 
 
@@ -95,10 +100,17 @@ def _decide(
         # AC-01.3: an unseen vendor is never eligible for STP, regardless of confidence.
         return RoutingDecision.REVIEW, "policy:new_vendor"
 
+    # Vendor's own ceiling wins when set (even if it's *higher* than the policy default —
+    # an explicit per-vendor override is a deliberate business decision); otherwise fall
+    # back to the policy default so every vendor has a real ceiling, not just ones that
+    # happen to have one configured.
+    max_auto_amount = (
+        vendor.max_auto_amount if vendor.max_auto_amount is not None else policy.max_auto_amount
+    )
     if (
-        vendor.max_auto_amount is not None
+        max_auto_amount is not None
         and invoice.total is not None
-        and invoice.total > vendor.max_auto_amount
+        and invoice.total > max_auto_amount
     ):
         return RoutingDecision.REVIEW, "policy:amount_ceiling"
 

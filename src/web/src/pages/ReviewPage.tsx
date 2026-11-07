@@ -1,25 +1,83 @@
 import { useEffect, useRef, useState } from "react";
+import { fetchInvoiceDetail } from "../api/processingClient";
 import { AlreadyClaimedError, claimInvoice, releaseInvoice, submitReview } from "../api/reviewClient";
 import { DocumentViewer } from "../components/DocumentViewer";
 import { FieldEditor } from "../components/FieldEditor";
 import { IssuePanel } from "../components/IssuePanel";
-import { mockInvoice } from "../data/mockInvoice";
-import type { ExtractedField, ReviewOutcome } from "../types";
+import type { ExtractedField, ReviewInvoice, ReviewOutcome } from "../types";
 
-// Placeholder for real auth (T-062) — mirrors the dev-mode placeholder in
-// src/api/dependencies.py. Both need replacing together.
+// Placeholder for real per-person identity (T-062) — App.tsx's login is what actually
+// gates this page now; this name is just attribution on the claim, same as
+// api/routers/admin.py's fixed "admin" reviewer name for admin accepts.
 const CURRENT_REVIEWER = "priya";
 
+type LoadStatus = "loading" | "loaded" | "error";
 type ClaimStatus = "claiming" | "claimed" | "conflict" | "error";
 
-export function ReviewPage() {
-  const invoice = mockInvoice; // placeholder pending GET /invoices/{id} — see mockInvoice.ts
+interface ReviewPageProps {
+  invoiceId: string | null;
+  onSubmitted: () => void;
+}
+
+/**
+ * App.tsx only renders this once someone's signed in, so there's no login gate here —
+ * unlike before, when this page managed its own AP session independently of the rest of
+ * the app.
+ */
+export function ReviewPage({ invoiceId, onSubmitted }: ReviewPageProps) {
+  const [loadStatus, setLoadStatus] = useState<LoadStatus>("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [invoice, setInvoice] = useState<ReviewInvoice | null>(null);
+
+  useEffect(() => {
+    if (!invoiceId) return;
+    let cancelled = false;
+    setLoadStatus("loading");
+    fetchInvoiceDetail(invoiceId)
+      .then((result) => {
+        if (cancelled) return;
+        setInvoice(result);
+        setLoadStatus("loaded");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoadError(err instanceof Error ? err.message : "Could not load this invoice.");
+        setLoadStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceId]);
+
+  if (!invoiceId) {
+    return <p>Pick an invoice from Processing Results to review it.</p>;
+  }
+  if (loadStatus === "loading") {
+    return <p>Loading invoice…</p>;
+  }
+  if (loadStatus === "error" || !invoice) {
+    return (
+      <p role="alert" data-testid="review-load-error">
+        {loadError}
+      </p>
+    );
+  }
+
+  return <ReviewWorkspace invoice={invoice} onSubmitted={onSubmitted} />;
+}
+
+function ReviewWorkspace({
+  invoice,
+  onSubmitted,
+}: {
+  invoice: ReviewInvoice;
+  onSubmitted: () => void;
+}) {
   const [fields, setFields] = useState<ExtractedField[]>(invoice.fields);
   const [selectedFieldName, setSelectedFieldName] = useState<string | null>(null);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>("claiming");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [submittedOutcome, setSubmittedOutcome] = useState<ReviewOutcome | null>(null);
   const claimedRef = useRef(false);
 
   useEffect(() => {
@@ -35,10 +93,14 @@ export function ReviewPage() {
         if (cancelled) return;
         if (err instanceof AlreadyClaimedError) {
           setStatusMessage(`This invoice is already claimed by ${err.heldBy}.`);
+          setClaimStatus("conflict");
+        } else if (err instanceof Error && err.name === "UnauthorizedError") {
+          setStatusMessage("Your session has expired — sign out and sign in again.");
+          setClaimStatus("error");
         } else {
           setStatusMessage(err instanceof Error ? err.message : "Could not claim this invoice.");
+          setClaimStatus("error");
         }
-        setClaimStatus(err instanceof AlreadyClaimedError ? "conflict" : "error");
       });
 
     return () => {
@@ -91,9 +153,13 @@ export function ReviewPage() {
     try {
       await submitReview(invoice.invoiceId, CURRENT_REVIEWER, outcome);
       claimedRef.current = false; // the backend releases the claim on submit
-      setSubmittedOutcome(outcome);
+      onSubmitted();
     } catch (err) {
-      setStatusMessage(err instanceof Error ? err.message : "Could not submit this review.");
+      if (err instanceof Error && err.name === "UnauthorizedError") {
+        setStatusMessage("Your session has expired — sign out and sign in again.");
+      } else {
+        setStatusMessage(err instanceof Error ? err.message : "Could not submit this review.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -109,14 +175,6 @@ export function ReviewPage() {
       </p>
     );
   }
-  if (submittedOutcome) {
-    return (
-      <p data-testid="submitted-message">
-        Review {submittedOutcome}. Thanks, {CURRENT_REVIEWER}.
-      </p>
-    );
-  }
-
   return (
     <div className="review-page">
       <header>
@@ -144,8 +202,8 @@ export function ReviewPage() {
           />
           <IssuePanel issues={invoice.issues} />
           <div className="review-page__actions">
-            <button type="button" disabled={submitting} onClick={() => handleDecision("approved")}>
-              Approve
+            <button type="button" disabled={submitting} onClick={() => handleDecision("forwarded")}>
+              Forward for acceptance
             </button>
             <button type="button" disabled={submitting} onClick={() => handleDecision("rejected")}>
               Reject

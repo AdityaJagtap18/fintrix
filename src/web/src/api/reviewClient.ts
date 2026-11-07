@@ -1,3 +1,4 @@
+import { authHeader } from "./authClient";
 import type { AssignmentResponseDto, ClaimResponseDto, ReviewOutcome } from "../types";
 
 const API_BASE = "/api/v1/review";
@@ -26,10 +27,12 @@ export class UnauthorizedError extends Error {
   }
 }
 
-function authHeaders(reviewer: string): HeadersInit {
-  // Dev-only placeholder for Entra ID bearer auth (T-062) — see src/api/dependencies.py.
-  // Replacing this means replacing exactly this function, nowhere else in the client.
-  return { "X-Reviewer": reviewer };
+function reviewHeaders(reviewer: string): HeadersInit {
+  // X-Reviewer: dev-only placeholder for Entra ID bearer auth (T-062) — see
+  // src/api/dependencies.py. Authorization: the real session (api/auth.py) — every
+  // review endpoint requires one now, any signed-in user (AP being the reviewer role in
+  // practice).
+  return { "X-Reviewer": reviewer, ...authHeader() };
 }
 
 async function throwForErrorResponse(response: Response, invoiceId: string): Promise<never> {
@@ -54,7 +57,7 @@ export interface ClaimResult {
 export async function claimInvoice(invoiceId: string, reviewer: string): Promise<ClaimResult> {
   const response = await fetch(`${API_BASE}/${invoiceId}/claim`, {
     method: "POST",
-    headers: authHeaders(reviewer),
+    headers: reviewHeaders(reviewer),
   });
   if (!response.ok) return throwForErrorResponse(response, invoiceId);
   const dto: ClaimResponseDto = await response.json();
@@ -68,7 +71,7 @@ export async function releaseInvoice(
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/${invoiceId}/release`, {
     method: "POST",
-    headers: authHeaders(reviewer),
+    headers: reviewHeaders(reviewer),
     // `keepalive` lets this request outlive the page during a `pagehide`-triggered
     // release (tab close/refresh) — a normal fetch gets aborted by the browser the
     // instant the page starts unloading, which is exactly when this call matters most.
@@ -91,7 +94,7 @@ export async function submitReview(
 ): Promise<SubmitResult> {
   const response = await fetch(`${API_BASE}/${invoiceId}/submit`, {
     method: "POST",
-    headers: { ...authHeaders(reviewer), "Content-Type": "application/json" },
+    headers: { ...reviewHeaders(reviewer), "Content-Type": "application/json" },
     body: JSON.stringify({ outcome }),
   });
   if (!response.ok) return throwForErrorResponse(response, invoiceId);

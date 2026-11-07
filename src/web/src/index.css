@@ -1,46 +1,185 @@
+/* ===== Design tokens =====
+   Same palette, radii and shadows as mitraedge.com's own site
+   (MitraEdge/public/css/style.css) — this app inherits the parent brand's look, not its
+   own. Status colors (rejected/urgent = red, review/due-soon = amber, accepted/approved
+   = green) are functional, not brand, and are left as-is throughout this file. */
 :root {
   color-scheme: light;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bg: #f0f4f8;
+  --bg-alt: #e7edf3;
+  --surface: #ffffff;
+  --surface-2: #f7f9fb;
+  --text: #1f2937;
+  --text-soft: #4b5568;
+  --text-faint: #8a93a3;
+  --border: rgba(31, 41, 55, 0.1);
+  --border-strong: rgba(31, 41, 55, 0.18);
+  --accent: #0c5af7;
+  --accent-bright: #2f74ff;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(12, 90, 247, 0.1);
+  --radius: 14px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 2px 8px rgba(31, 41, 55, 0.06);
+  --shadow-md: 0 16px 40px rgba(31, 41, 55, 0.12);
+  --font: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-heading: "Questrial", var(--font);
+  font-family: var(--font);
 }
 
 body {
   margin: 0;
-  background: #f7f7f8;
-  color: #1a1a1a;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+}
+
+button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-bright);
+  border-color: var(--accent-bright);
+  color: var(--accent-ink);
+}
+
+/* Floating pill header, same shape as MitraEdge's own site header (site-header +
+   header-inner: sticky, padded off the viewport edge, a translucent blurred pill card
+   underneath) rather than a flush bar spanning the full width. */
+.app__header {
+  position: sticky;
+  top: 0;
+  z-index: 101;
+  padding: 16px 20px 0;
+}
+
+.app__header-inner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 60px;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 0.75rem 0 1.25rem;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+}
+
+.app__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.app__brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  flex-shrink: 0;
+}
+.app__brand-mark svg { width: 100%; height: 100%; display: block; }
+
+.app__brand-name {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--text);
+  white-space: nowrap;
 }
 
 .app__tabs {
   display: flex;
-  gap: 0.25rem;
-  padding: 0.75rem 1.5rem 0;
-  background: #fff;
-  border-bottom: 1px solid #e2e2e4;
+  align-items: center;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.app__signout {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .app__tab {
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  color: #555;
+  border-radius: var(--radius-pill);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-soft);
+}
+
+.app__tab:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--text);
+  background: var(--bg-alt);
 }
 
 .app__tab--active {
-  color: #1a1a1a;
+  color: var(--accent);
   font-weight: 600;
-  border-bottom-color: #e63946;
+  background: var(--accent-soft);
+}
+
+.app__tab--active:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent-bright);
 }
 
 .processing-page {
   padding: 1rem 1.5rem;
   max-width: 900px;
-}
-
-.processing-page__subtitle {
-  color: #555;
-  margin-top: 0;
 }
 
 .processing-page__list {
@@ -49,15 +188,729 @@ body {
   gap: 1rem;
 }
 
+.processing-page__upload-notice {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
 .processing-page__no-payment {
-  color: #666;
+  color: var(--text-faint);
   font-style: italic;
+}
+
+.tracker {
+  margin-bottom: 1rem;
+}
+
+.tracker__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0;
+}
+
+.tracker__box {
+  flex: 1;
+  min-width: 120px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--border-strong);
+}
+
+.tracker__box dt {
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
+.tracker__box dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.tracker__box--urgent {
+  border-left-color: #c0392b;
+}
+
+.tracker__box--urgent dd {
+  color: #96281b;
+}
+
+.tracker__box--due-soon {
+  border-left-color: #e9a23b;
+}
+
+.tracker__box--due-soon dd {
+  color: #8a5a12;
+}
+
+.tracker__box--accepted {
+  border-left-color: #2a9d8f;
+}
+
+.tracker__box--accepted dd {
+  color: #1b6d63;
+}
+
+.tracker__box--rejected {
+  border-left-color: #6b6b6b;
+}
+
+/* ===== Dashboard (AP / Admin landing page after sign-in) ===== */
+.dashboard-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.dashboard-stat {
+  flex: 1;
+  min-width: 180px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1.1rem 1.25rem;
+  border-left: 4px solid var(--accent);
+}
+
+.dashboard-stat__label {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
+.dashboard-stat__value {
+  margin: 0.2rem 0 0;
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: var(--text);
+}
+
+.dashboard-stat--forwarded {
+  border-left-color: #e9a23b;
+}
+
+.dashboard-stat--rejected {
+  border-left-color: #c0392b;
+}
+
+.dashboard-stat--accepted {
+  border-left-color: #2a9d8f;
+}
+
+.dashboard-cta {
+  margin-top: 0.25rem;
+}
+
+/* ===== Dashboard overview panel (Admin / Super Admin) — KPI row + small charts, layout
+   borrowed from a reference AP-automation dashboard: a dark title strip, a row of big
+   numbers with dividers, then a grid of small chart cards below. Colors stay this app's
+   own semantic ones (status green/amber/red, brand blue) rather than the reference's own
+   palette. */
+.dash-panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  margin: 1rem 0 1.5rem;
+}
+
+.dash-panel__header {
+  margin: 0;
+  background: var(--text);
+  color: #fff;
+  padding: 0.65rem 1.25rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-row {
+  display: flex;
+  align-items: stretch;
+  padding: 1.1rem 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.kpi-row__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0 1.25rem;
+  min-width: 130px;
+}
+
+.kpi-row__item:first-child {
+  padding-left: 0;
+}
+
+.kpi-row__value {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.kpi-row__value--accepted {
+  color: #1b6d63;
+}
+
+.kpi-row__value--forwarded {
+  color: #8a5a12;
+}
+
+.kpi-row__value--rejected {
+  color: #96281b;
+}
+
+.kpi-row__label {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.kpi-row__divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border-top: 1px solid var(--border);
+}
+
+.chart-card {
+  background: var(--surface);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.chart-card h3 {
+  font-size: 0.75rem;
+  color: var(--text-soft);
+  margin: 0 0 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.donut-chart {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.donut-chart__total {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.donut-chart__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+.donut-chart__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.4rem;
+}
+
+.bar-chart__label {
+  font-size: 8px;
+  fill: var(--text-faint);
+}
+
+.bar-chart rect {
+  cursor: default;
+}
+
+.bar-chart__tooltip rect {
+  fill: var(--text);
+}
+
+.bar-chart__tooltip text {
+  font-size: 9px;
+  font-weight: 600;
+  fill: var(--surface);
+}
+
+.bar-chart__empty {
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  font-style: italic;
+  margin: 0;
+}
+
+.dashboard-back {
+  margin-bottom: 1rem;
+  background: transparent;
+  border-color: transparent;
+  padding-left: 0;
+  color: var(--accent);
+}
+
+.dashboard-back:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--accent-bright);
+}
+
+/* ===== Super Admin ===== */
+.superadmin-page {
+  padding: 1rem 1.5rem;
+  max-width: 900px;
+}
+
+.create-user-form {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.create-user-form h2 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.create-user-form__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.create-user-form__fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.create-user-form__fields input,
+.create-user-form__fields select {
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-alt);
+  color: var(--text);
+}
+
+.create-user-form__fields input:focus,
+.create-user-form__fields select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.create-user-form__fields [role="alert"] {
+  grid-column: 1 / -1;
+  color: #c0392b;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.create-user-form__reveal {
+  background: #f2fbf9;
+  border: 1px solid #2a9d8f;
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.25rem;
+}
+
+.create-user-form__reveal p {
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+}
+
+.create-user-form__password {
+  font-family: monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  display: inline-block;
+  user-select: all;
+}
+
+.create-user-form__reveal-meta {
+  color: var(--text-soft);
+  font-size: 0.8rem !important;
+  margin-top: 0.5rem !important;
+}
+
+.user-table-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.user-table th,
+.user-table td {
+  text-align: left;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.user-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+
+.user-table tr:last-child td {
+  border-bottom: none;
+}
+
+.user-status {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.user-status--active {
+  background: #d7f2ee;
+  color: #1b6d63;
+}
+
+.user-status--expired {
+  background: #fbe0dd;
+  color: #96281b;
+}
+
+.accepted-page,
+.ap-page {
+  padding: 1rem 1.5rem;
+  max-width: 900px;
+}
+
+.accepted-page__list,
+.ap-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.accepted-card,
+.ap-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem 1.25rem;
+  border-left: 4px solid #2a9d8f;
+}
+
+.ap-card {
+  border-left-color: #c0392b;
+}
+
+.accepted-card__header,
+.ap-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.accepted-card__header h2,
+.ap-card__header h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.accepted-card__meta,
+.ap-card__meta {
+  display: flex;
+  gap: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.accepted-card__meta dt,
+.ap-card__meta dt {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.accepted-card__meta dd,
+.ap-card__meta dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.accepted-card__amount {
+  color: #1b6d63;
+  font-weight: 600;
+  margin: 0.5rem 0 0;
+}
+
+.ap-page__header,
+.admin-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-page {
+  padding: 1rem 1.5rem;
+  max-width: 900px;
+}
+
+.admin-page__header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.admin-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem 1.25rem;
+  border-left: 4px solid #e9a23b;
+}
+
+.admin-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-card__header h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.admin-card__meta {
+  display: flex;
+  gap: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.admin-card__meta dt {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.admin-card__meta dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* ===== Login popup (AP / Admin) — matches MitraEdge/public/css/style.css's own
+   .modal/.modal-backdrop/.modal-panel pattern from the marketing site, not a full-page
+   takeover. Sits below .app__header (z-index 101) so the tab bar stays visible and
+   clickable while a login gate is showing — otherwise a signed-out AP/Admin tab traps
+   the user with no way to click over to another tab. */
+.role-login {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.role-login__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 7, 12, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.role-login__panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 40px;
+  box-shadow: var(--shadow-md);
+}
+
+.role-login__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1.5rem;
+}
+
+.role-login__brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+}
+.role-login__brand-mark svg { width: 100%; height: 100%; display: block; }
+
+.role-login__brand-name {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.role-login__brand-tag {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.role-login__panel h1 {
+  margin: 4px 0 0.35rem;
+  font-size: 1.5rem;
+}
+
+.role-login__subtitle {
+  color: var(--text-soft);
+  margin: 0 0 1.75rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.role-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.role-login__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.role-login__form input {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-alt);
+  color: var(--text);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.role-login__form input::placeholder {
+  color: var(--text-faint);
+}
+
+.role-login__form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.role-login__password-field {
+  position: relative;
+  display: flex;
+}
+
+.role-login__password-field input {
+  flex: 1;
+  padding-right: 3.5rem;
+}
+
+.role-login__toggle-password {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--text-soft);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+}
+
+.role-login__toggle-password:hover:not(:disabled) {
+  border: none;
+  color: var(--accent-bright);
+}
+
+.role-login__form [role="alert"] {
+  color: #c0392b;
+  font-size: 0.85rem;
+  margin: -0.4rem 0 0;
+}
+
+.role-login__submit {
+  width: 100%;
+  font-size: 0.95rem;
+  padding: 0.75rem;
+  margin-top: 0.25rem;
 }
 
 .result-card__source {
   margin: 0.25rem 0 0;
   font-size: 0.8rem;
-  color: #777;
+  color: var(--text-faint);
 }
 
 .source-badge {
@@ -67,22 +920,28 @@ body {
   letter-spacing: 0.03em;
   padding: 0.15rem 0.45rem;
   border-radius: 4px;
-  background: #eee;
-  color: #555;
+  background: var(--bg-alt);
+  color: var(--text-soft);
   margin-top: 0.35rem;
 }
 
 .source-badge--azure_document_intelligence {
-  background: #e3f0fd;
-  color: #1a5a96;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.source-badge--cache_reuse {
+  background: #ede3fd;
+  color: #5a2d96;
 }
 
 .extract-form {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   padding: 1rem 1.25rem;
   margin-bottom: 1rem;
-  border: 1px solid #d8e6f5;
+  border: 1px solid var(--border);
 }
 
 .extract-form h2 {
@@ -92,7 +951,7 @@ body {
 
 .extract-form__notice {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--text-soft);
   margin-top: 0;
 }
 
@@ -101,13 +960,45 @@ body {
   flex-direction: column;
   gap: 0.35rem;
   font-size: 0.85rem;
-  color: #444;
+  color: var(--text-soft);
   max-width: 320px;
 }
 
+/* A native <input type="file"> renders its own OS-styled button that plain `button {}`
+   rules can't reach — ::file-selector-button targets that inner control directly, so
+   every file picker in the app gets the same pill/font as every other button without
+   restructuring the input itself (which existing tests select by its label text). */
+input[type="file"] {
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+
+input[type="file"]::file-selector-button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  margin-right: 0.75rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+input[type="file"]::file-selector-button:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
 .upload-form {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   padding: 0.75rem 1.25rem 1.25rem;
   margin-bottom: 1.5rem;
 }
@@ -120,8 +1011,8 @@ body {
 
 .upload-form__notice {
   font-size: 0.85rem;
-  color: #666;
-  background: #f7f7f8;
+  color: var(--text-soft);
+  background: var(--bg-alt);
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
 }
@@ -135,7 +1026,7 @@ body {
 
 .upload-form__row label {
   font-size: 0.85rem;
-  color: #444;
+  color: var(--text-soft);
   min-width: 140px;
 }
 
@@ -151,13 +1042,13 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.8rem;
-  color: #444;
+  color: var(--text-soft);
 }
 
 .upload-form__grid input {
   font: inherit;
   padding: 0.35rem 0.5rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
 }
 
@@ -168,10 +1059,11 @@ body {
 }
 
 .result-card {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   padding: 1rem 1.25rem;
-  border-left: 4px solid #ccc;
+  border-left: 4px solid var(--border-strong);
 }
 
 .result-card--straight_through {
@@ -206,8 +1098,8 @@ body {
   letter-spacing: 0.03em;
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
-  background: #eee;
-  color: #333;
+  background: var(--bg-alt);
+  color: var(--text-soft);
   white-space: nowrap;
 }
 
@@ -228,6 +1120,28 @@ body {
   color: #8a5a12;
 }
 
+.decision-badge--approved {
+  background: #d7f2ee;
+  color: #1b6d63;
+}
+
+.result-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.result-card__delete,
+.user-table__delete {
+  background: none;
+  border: 1px solid #c0392b;
+  color: #c0392b;
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
 .result-card__meta {
   display: flex;
   gap: 1.5rem;
@@ -236,7 +1150,7 @@ body {
 
 .result-card__meta dt {
   font-size: 0.75rem;
-  color: #888;
+  color: var(--text-faint);
 }
 
 .result-card__meta dd {
@@ -247,7 +1161,7 @@ body {
 .payment-instruction {
   margin-top: 0.75rem;
   background: #f2fbf9;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 0.75rem 1rem;
 }
 
@@ -265,7 +1179,7 @@ body {
 
 .payment-instruction dt {
   font-size: 0.75rem;
-  color: #666;
+  color: var(--text-soft);
 }
 
 .payment-instruction dd {
@@ -276,7 +1190,7 @@ body {
 .payment-instruction__disclaimer {
   margin: 0.5rem 0 0;
   font-size: 0.75rem;
-  color: #777;
+  color: var(--text-faint);
 }
 
 .review-page {
@@ -292,14 +1206,14 @@ body {
 
 .document-viewer {
   background: #2b2b2b;
-  border-radius: 8px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
 .document-viewer--error {
   padding: 2rem;
   color: #c0392b;
-  background: #fff;
+  background: var(--surface);
 }
 
 .document-viewer__toolbar {
@@ -326,30 +1240,42 @@ body {
 }
 
 .field-overlay--selected {
-  border-color: #e63946;
+  border-color: var(--accent);
   border-width: 2px;
   border-style: solid;
 }
 
 .field-editor {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   padding: 0.5rem;
   margin-bottom: 1rem;
 }
 
 .field-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  /* The label column used to be minmax(0, 1fr) — same flexible track as the value
+     column — so a long, unbroken value (e.g. a wrapped street address) could starve it
+     down to near-zero width. Field names have no spaces to wrap on, so the label text
+     then overflowed its own column and visually landed on top of the value next to it.
+     A content-sized minimum keeps the label intact; the value column absorbs the
+     wrapping instead. */
+  grid-template-columns: minmax(max-content, auto) minmax(0, 1fr) auto;
   gap: 0.5rem;
-  align-items: center;
+  align-items: start;
   padding: 0.4rem 0.5rem;
   border-radius: 4px;
   cursor: pointer;
 }
 
+.field-row label {
+  padding-top: 0.15rem; /* optical alignment with the value's first line now that
+    align-items is start, not center */
+}
+
 .field-row[data-selected="true"] {
-  background: #fdecea;
+  background: var(--accent-soft);
 }
 
 .field-row[data-needs-review="true"] label {
@@ -358,13 +1284,14 @@ body {
 
 .confidence {
   font-variant-numeric: tabular-nums;
-  color: #666;
+  color: var(--text-soft);
   font-size: 0.8rem;
 }
 
 .issue-panel {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   padding: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -382,4 +1309,140 @@ body {
 .review-page__actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.preprocess-tracker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.preprocess-tracker--secondary {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.preprocess-tracker dt {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.preprocess-tracker dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.preprocess-tracker__stat--clean dd {
+  color: #1b6d63;
+}
+
+.preprocess-tracker__stat--flagged dd {
+  color: #8a5a12;
+}
+
+.preprocess-tracker__stat--reject dd {
+  color: #96281b;
+}
+
+.preprocess-cross-duplicates {
+  background: #fbeacb;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.preprocess-cross-duplicates h3 {
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.preprocess-cross-duplicates ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.preprocess-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.preprocess-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem 1.25rem;
+  border-left: 4px solid var(--border-strong);
+}
+
+.preprocess-card--clean {
+  border-left-color: #2a9d8f;
+}
+
+.preprocess-card--flagged {
+  border-left-color: #e9a23b;
+}
+
+.preprocess-card--reject {
+  border-left-color: #c0392b;
+}
+
+.preprocess-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.preprocess-card__header h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.preprocess-card__page-count {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  margin: 0.5rem 0;
+}
+
+.preprocess-checklist {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.preprocess-check {
+  font-size: 0.85rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.preprocess-check--pass {
+  color: #1b6d63;
+}
+
+.preprocess-check--fail {
+  color: #8a5a12;
+  font-weight: 600;
+}
+
+.preprocess-tracker__size,
+.preprocess-card__size {
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+
+.preprocess-send {
+  margin: 0.75rem 0;
 }

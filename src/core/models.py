@@ -246,6 +246,14 @@ class Invoice:
     state: InvoiceState = InvoiceState.RECEIVED
     model_id: str | None = None
     model_version: str | None = None
+    # T-044/Article XII: when this extraction actually ran, so
+    # core.extraction.cache.decide_cache_reuse has something to age against the cache
+    # window. None for anything built before this field existed, or never persisted.
+    extracted_at: datetime | None = None
+    # sha256 of the source file's raw bytes — what InvoiceRepository.get_by_content_hash
+    # actually looks up by. None for anything not extracted from a real uploaded file
+    # (manual entry, seeded demo data).
+    content_hash: str | None = None
 
     def confidence(self, field_name: str) -> float:
         """Effective confidence for a field, honouring FR-054. Missing fields read as 0.0
@@ -315,8 +323,15 @@ class Invoice:
 
 
 class ReviewOutcome(StrEnum):
+    # Set only by an admin accepting a previously-forwarded invoice (see api/auth.py's
+    # AP/admin split) — never directly by AP anymore. Terminal.
     APPROVED = "approved"
+    # Set by AP directly. Terminal — admin has no reject action.
     REJECTED = "rejected"
+    # Set by AP: "I think this should be accepted, but I don't have final authority" —
+    # sits in the admin queue (GET /api/v1/admin/forwarded) until an admin accepts it,
+    # at which point the outcome becomes APPROVED. Not terminal.
+    FORWARDED = "forwarded"
 
 
 @dataclass(slots=True)

@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchProcessingResults, type ProcessingResultDto } from "../api/processingClient";
-import { ExtractInvoiceForm } from "../components/ExtractInvoiceForm";
+import {
+  deleteProcessingResult,
+  fetchProcessingResults,
+  fetchProcessingSummary,
+  type ProcessingResultDto,
+  type ProcessingSummaryDto,
+} from "../api/processingClient";
 import { UploadInvoiceForm } from "../components/UploadInvoiceForm";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -10,8 +15,24 @@ type LoadState = "loading" | "loaded" | "error";
  * (api/routers/processing.py). Not the real ingestion pipeline — see that module's
  * docstring — but the routing decision and payment instruction shown here are computed by
  * the actual, tested production logic, not mocked data.
+ *
+ * No direct file upload here on purpose — a raw PDF handed straight to POST /extract
+ * skips every preprocessing check (blank-page drop, DPI/grayscale, the content-hash
+ * cache, the page-count gate). The Preprocessing tab is the only path from "a PDF" to
+ * "a processed invoice" now; its "Send for extraction" button is what actually calls
+ * this same pipeline. UploadInvoiceForm below is unrelated — no file, no OCR, just typed
+ * field values for exercising a specific routing outcome.
+ *
+ * Only shows invoices still needing a human — accepted and rejected ones (straight-
+ * through, human-approved, or human-rejected) move to the Accepted tab once decided;
+ * rejected ones were never in this response to begin with (GET /results excludes them
+ * server-side — see AcceptedPage for where they actually show up).
  */
-export function ProcessingResultsPage() {
+interface ProcessingResultsPageProps {
+  onReview: (invoiceId: string) => void;
+}
+
+export function ProcessingResultsPage({ onReview }: ProcessingResultsPageProps) {
   const [state, setState] = useState<LoadState>("loading");
   const [results, setResults] = useState<ProcessingResultDto[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -49,8 +70,25 @@ export function ProcessingResultsPage() {
     };
   }, []);
 
+  async function handleDelete(invoiceId: string) {
+    await deleteProcessingResult(invoiceId);
+    setResults((prev) => prev.filter((r) => r.invoice_id !== invoiceId));
+    setFileUrls((prev) => {
+      const { [invoiceId]: removed, ...rest } = prev;
+      if (removed) URL.revokeObjectURL(removed);
+      return rest;
+    });
+  }
+
+  function handleNewResult(result: ProcessingResultDto, fileUrl: string | null = null) {
+    setResults((prev) => [...prev, result]);
+    if (fileUrl) {
+      setFileUrls((prev) => ({ ...prev, [result.invoice_id]: fileUrl }));
+    }
+  }
+
   if (state === "loading") {
-    return <p>Loading processing results…</p>;
+    return <p>Loading processed invoices…</p>;
   }
   if (state === "error") {
     return (
@@ -60,42 +98,60 @@ export function ProcessingResultsPage() {
     );
   }
 
+  const pending = results.filter((r) => r.decision !== "straight_through" && !r.review_outcome);
+
   return (
     <div className="processing-page">
-      <h1>Processing Results</h1>
-      <p className="processing-page__subtitle">
-        Each invoice below was run through validation, 3-way matching, and confidence
-        routing. A straight-through decision produces a payment instruction; anything else
-        needs a human in the Review queue.
+      <Tracker />
+
+      <p className="processing-page__upload-notice" data-testid="upload-moved-notice">
+        To process a new invoice, use the <strong>Preprocessing</strong> tab — every file
+        is checked and optimized there before it's ever sent for extraction.
       </p>
 
-      <ExtractInvoiceForm
-        onExtracted={(result, fileUrl) => {
-          setResults((prev) => [...prev, result]);
-          setFileUrls((prev) => ({ ...prev, [result.invoice_id]: fileUrl }));
-        }}
-      />
-
-      <UploadInvoiceForm
-        onSubmitted={(result, fileUrl) => {
-          setResults((prev) => [...prev, result]);
-          if (fileUrl) {
-            setFileUrls((prev) => ({ ...prev, [result.invoice_id]: fileUrl }));
-          }
-        }}
-      />
+      <UploadInvoiceForm onSubmitted={handleNewResult} />
 
       <div role="list" aria-label="Processing results" className="processing-page__list">
-        {results.map((result) => (
-          <ResultCard key={result.invoice_id} result={result} fileUrl={fileUrls[result.invoice_id]} />
+        {pending.map((result) => (
+          <ResultCard
+            key={result.invoice_id}
+            result={result}
+            fileUrl={fileUrls[result.invoice_id]}
+            onReview={onReview}
+            onDelete={handleDelete}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function ResultCard({ result, fileUrl }: { result: ProcessingResultDto; fileUrl?: string }) {
+function ResultCard({
+  result,
+  fileUrl,
+  onReview,
+  onDelete,
+}: {
+  result: ProcessingResultDto;
+  fileUrl?: string;
+  onReview: (invoiceId: string) => void;
+  onDelete: (invoiceId: string) => void;
+}) {
   const isStraightThrough = result.decision === "straight_through";
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDeleteClick() {
+    if (!window.confirm(`Delete ${result.vendor_name} — ${result.invoice_number}?`)) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete(result.invoice_id);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete this invoice.");
+      setDeleting(false);
+    }
+  }
 
   return (
     <article role="listitem" className={`result-card result-card--${result.decision}`}>
@@ -103,15 +159,34 @@ function ResultCard({ result, fileUrl }: { result: ProcessingResultDto; fileUrl?
         <h2>
           {result.vendor_name} — {result.invoice_number}
         </h2>
-        <span className={`decision-badge decision-badge--${result.decision}`}>
-          {result.decision.replace(/_/g, " ")}
-        </span>
+        <div className="result-card__header-actions">
+          <span className={`decision-badge decision-badge--${result.decision}`}>
+            {result.decision.replace(/_/g, " ")}
+          </span>
+          {result.review_outcome && (
+            <span className={`decision-badge decision-badge--${result.review_outcome}`}>
+              Reviewed: {result.review_outcome}
+            </span>
+          )}
+          <button
+            type="button"
+            className="result-card__delete"
+            onClick={handleDeleteClick}
+            disabled={deleting}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
       </header>
 
+      {deleteError && (
+        <p role="alert" data-testid={`delete-error-${result.invoice_id}`}>
+          {deleteError}
+        </p>
+      )}
+
       <span className={`source-badge source-badge--${result.extraction_method}`}>
-        {result.extraction_method === "azure_document_intelligence"
-          ? "Real OCR (Azure Document Intelligence)"
-          : "Manual test data"}
+        {extractionMethodLabel(result.extraction_method)}
       </span>
 
       {result.source_filename && (
@@ -182,11 +257,88 @@ function ResultCard({ result, fileUrl }: { result: ProcessingResultDto; fileUrl?
             payments (spec.md §5).
           </p>
         </div>
-      ) : (
+      ) : result.review_outcome ? (
         <p className="processing-page__no-payment">
-          No payment instruction — this invoice needs a human in the Review queue.
+          No payment instruction — a human has already reviewed this invoice and{" "}
+          {result.review_outcome} it.
         </p>
+      ) : (
+        <div className="processing-page__no-payment">
+          <p>No payment instruction — this invoice needs a human in the Review queue.</p>
+          <button type="button" onClick={() => onReview(result.invoice_id)}>
+            Review this invoice
+          </button>
+        </div>
       )}
     </article>
+  );
+}
+
+function extractionMethodLabel(method: string): string {
+  if (method === "azure_document_intelligence") return "Real OCR (Azure Document Intelligence)";
+  // T-044: fields came from a prior real OCR run on byte-identical content, not this
+  // call — genuinely real data, just not a fresh Document Intelligence call.
+  if (method === "cache_reuse") return "Cached (previously extracted)";
+  return "Manual test data";
+}
+
+function Tracker() {
+  const [summary, setSummary] = useState<ProcessingSummaryDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchProcessingSummary()
+      .then((data) => {
+        if (!cancelled) setSummary(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not load the tracker.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (error) {
+    return (
+      <p role="alert" data-testid="tracker-error">
+        {error}
+      </p>
+    );
+  }
+  if (!summary) return null;
+
+  return (
+    <div className="tracker" data-testid="tracker">
+      <dl className="tracker__grid">
+        <div className="tracker__box">
+          <dt>Total received</dt>
+          <dd data-testid="tracker-total">{summary.total}</dd>
+        </div>
+        <div className="tracker__box tracker__box--urgent">
+          <dt>Urgent</dt>
+          <dd data-testid="tracker-urgent">{summary.urgent_count}</dd>
+        </div>
+        <div className="tracker__box tracker__box--due-soon">
+          <dt>Due within 3 days</dt>
+          <dd data-testid="tracker-due-soon">{summary.due_soon_count}</dd>
+        </div>
+        <div className="tracker__box tracker__box--accepted">
+          <dt>Accepted</dt>
+          <dd data-testid="tracker-accepted">{summary.accepted_count}</dd>
+        </div>
+        <div className="tracker__box tracker__box--rejected">
+          <dt>Rejected</dt>
+          <dd data-testid="tracker-rejected">{summary.rejected_count}</dd>
+        </div>
+        <div className="tracker__box">
+          <dt>Pending</dt>
+          <dd data-testid="tracker-pending">{summary.pending_count}</dd>
+        </div>
+      </dl>
+    </div>
   );
 }

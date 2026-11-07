@@ -7,6 +7,7 @@ splitting them would just duplicate the container-client wiring.
 
 from __future__ import annotations
 
+import contextlib
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -24,6 +25,8 @@ from core.models import (
 )
 from infrastructure.repositories.serialization import (
     date_to_item,
+    datetime_from_item,
+    datetime_to_item,
     decimal_to_item,
     decode_scalar,
     encode_scalar,
@@ -103,6 +106,8 @@ def _to_item(invoice: Invoice) -> dict[str, Any]:
         "state": invoice.state.value,
         "model_id": invoice.model_id,
         "model_version": invoice.model_version,
+        "extracted_at": datetime_to_item(invoice.extracted_at),
+        "content_hash": invoice.content_hash,
         "fields": {name: _field_to_item(f) for name, f in invoice.fields.items()},
         "lines": [_line_to_item(line) for line in invoice.lines],
         # Denormalized purely so BR-04's unique key policy and the duplicate-detection
@@ -125,15 +130,17 @@ def _from_item(item: dict[str, Any]) -> Invoice:
         state=InvoiceState(item["state"]),
         model_id=item.get("model_id"),
         model_version=item.get("model_version"),
+        extracted_at=datetime_from_item(item.get("extracted_at")),
+        content_hash=item.get("content_hash"),
     )
 
 
 class CosmosInvoiceRepository:
-    """Satisfies `InvoiceRepository` and `DuplicateLookup` structurally (Article I)."""
+    """Satisfies `InvoiceRepository`, `DuplicateLookup`, and `InvoiceAdmin` structurally
+    (Article I)."""
 
     def __init__(self, database: DatabaseProxy) -> None:
         self._invoices = database.get_container_client("invoices")
-        self._documents = database.get_container_client("documents")
         self._tax_ids = database.get_container_client("vendor_tax_ids")
 
     def get(self, invoice_id: str) -> Invoice | None:
@@ -151,21 +158,32 @@ class CosmosInvoiceRepository:
     def save(self, invoice: Invoice) -> None:
         self._invoices.upsert_item(_to_item(invoice))
 
-    def get_by_content_hash(self, content_hash: str) -> Invoice | None:
-        """FR-003: reuse a stored extraction result instead of re-extracting. Two point-ish
-        reads — `documents` (partitioned by content_hash) to resolve document_id, then a
-        cross-partition `invoices` query on that document_id, since vendor_id (the
-        `invoices` partition key) isn't known at this point in the pipeline yet."""
-        # documents' item id is the content_hash itself (like vendor_tax_ids' id=tax_id) —
-        # a point-read by id requires knowing the id upfront, which document_id can't
-        # supply here since resolving document_id is exactly what this lookup is for.
-        try:
-            document = self._documents.read_item(content_hash, partition_key=content_hash)
-        except CosmosResourceNotFoundError:
-            return None
+    def delete(self, invoice_id: str) -> None:
+        """InvoiceAdmin. Needs a partition-key hop first — `invoice_id` alone doesn't say
+        which `vendor_id` partition the item lives in, same reasoning as `get()`."""
         items = self._invoices.query_items(
-            query="SELECT * FROM c WHERE c.document_id = @document_id",
-            parameters=[{"name": "@document_id", "value": document["document_id"]}],
+            query="SELECT c.vendor_id FROM c WHERE c.id = @invoice_id",
+            parameters=[{"name": "@invoice_id", "value": invoice_id}],
+            enable_cross_partition_query=True,
+        )
+        for item in items:
+            with contextlib.suppress(CosmosResourceNotFoundError):  # already gone — idempotent
+                self._invoices.delete_item(invoice_id, partition_key=item["vendor_id"])
+            return
+
+    def get_by_content_hash(self, content_hash: str) -> Invoice | None:
+        """FR-003: reuse a stored extraction result instead of re-extracting.
+        Cross-partition on `invoices` directly, since vendor_id (the partition key) isn't
+        known at this point in the pipeline — extraction hasn't run yet, that's the whole
+        question this answers. Originally hopped through the `documents` container
+        (partitioned by content_hash, so that half would have been a point read) — nothing
+        in this codebase writes a `documents` record yet (that's ingestion's job, T-049),
+        so that path always missed. content_hash is denormalized directly onto the
+        `invoices` item instead, same as invoice_number/invoice_date/total already are.
+        """
+        items = self._invoices.query_items(
+            query="SELECT * FROM c WHERE c.content_hash = @content_hash",
+            parameters=[{"name": "@content_hash", "value": content_hash}],
             enable_cross_partition_query=True,
         )
         for item in items:

@@ -127,6 +127,31 @@ def test_amount_over_vendor_ceiling_forces_review():
     assert result.reason == "policy:amount_ceiling"
 
 
+def test_amount_over_the_global_default_ceiling_forces_review_with_no_vendor_override():
+    invoice = make_invoice(confidence=0.99, total=Decimal("1000001.00"))
+    vendor = established_vendor()  # no max_auto_amount of its own
+    policy = RoutingPolicy(shadow_mode=False)  # policy.max_auto_amount defaults to 10L
+    result = route(invoice, PASSING_ISSUES, MATCHED, vendor, policy)
+    assert result.decision == RoutingDecision.REVIEW
+    assert result.reason == "policy:amount_ceiling"
+
+
+def test_amount_at_or_under_the_global_default_ceiling_is_unaffected():
+    invoice = make_invoice(confidence=0.99, total=Decimal("1000000.00"))
+    vendor = established_vendor()
+    policy = RoutingPolicy(shadow_mode=False)
+    result = route(invoice, PASSING_ISSUES, MATCHED, vendor, policy)
+    assert result.decision == RoutingDecision.STRAIGHT_THROUGH
+
+
+def test_a_vendors_own_higher_ceiling_overrides_the_global_default():
+    invoice = make_invoice(confidence=0.99, total=Decimal("5000000.00"))
+    vendor = established_vendor(max_auto_amount=Decimal("10000000.00"))  # explicitly higher
+    policy = RoutingPolicy(shadow_mode=False)
+    result = route(invoice, PASSING_ISSUES, MATCHED, vendor, policy)
+    assert result.decision == RoutingDecision.STRAIGHT_THROUGH
+
+
 def test_low_confidence_field_forces_review_even_above_auto_overall():
     # Critical fields (which drive `overall`) are all high-confidence; a non-critical
     # field (due_date) is low. That alone must be enough to block STP.

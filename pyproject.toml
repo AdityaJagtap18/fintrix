@@ -9,6 +9,12 @@ license = { text = "Proprietary" }
 dependencies = [
     "rapidfuzz>=3.9",
     "python-dateutil>=2.9",
+    # core.extraction.preprocessing's blank/duplicate/text-layer checks — a local,
+    # deterministic PDF library, not a cloud SDK, so Article I's "no Azure SDK in core"
+    # rule doesn't reach it (pyproject.toml's import-linter contract forbids "azure",
+    # never "fitz"). Real production dependency, not dev/test-only: this runs on every
+    # upload, same footing as rapidfuzz/python-dateutil above.
+    "pymupdf>=1.24",
 ]
 
 [project.optional-dependencies]
@@ -18,6 +24,7 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "types-python-dateutil>=2.9",
+    "types-openpyxl>=3.1",
     "bandit>=1.7",
     "pre-commit>=3.7",
     "import-linter>=2.0",
@@ -48,6 +55,24 @@ dev = [
     # credential plumbing itself, not one of the not-yet-testable Phase 2 adapters below.
     "azure-identity>=1.17",
     "python-dotenv>=1.0",
+    # api/observability.py emits every counter through the OpenTelemetry metrics API
+    # unconditionally (it's a real, always-importable no-op with nothing configured —
+    # that's the point of the API/SDK split) so the module needs this to import at all,
+    # test collection included. azure-monitor-opentelemetry (the actual exporter +
+    # FastAPI auto-instrumentation) is imported lazily, only when telemetry is actually
+    # enabled — see api/main.py's _telemetry_enabled — so it still needs to be a real
+    # dependency here, just not one every import pays for.
+    "opentelemetry-api>=1.27",
+    "azure-monitor-opentelemetry>=1.6",
+    # GET /api/v1/admin/export — the bank-payment .xlsx of accepted invoices, and
+    # api/auth.py's Excel-backed credential store (openpyxl reads that file too, not just
+    # writes the export). Not Azure, not conditional on anything being configured, so
+    # it's a real dependency like pymupdf above, not one of the Phase-2 azure-only
+    # extras below.
+    "openpyxl>=3.1",
+    # api/auth.py: every AP/Admin password is bcrypt-hashed at rest in the credentials
+    # workbook, never stored or compared in plaintext.
+    "bcrypt>=4.1",
 ]
 # Added incrementally as later Phase 2 pieces land — kept separate because these genuinely
 # aren't exercised by any test yet (T-048 blob/service bus adapters) and need real Azure
@@ -110,6 +135,15 @@ ignore_missing_imports = true
 # The azure-functions-durable package ships no py.typed marker / stubs as of this writing.
 module = "azure.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# PyMuPDF ships partial stubs — mypy resolves types like Document/Page but the methods on
+# them (open, get_text, get_images, ...) come back untyped. disallow_untyped_calls is a
+# property of the *calling* module, not the one being called into, so this has to target
+# core.extraction.preprocessing (the only file that touches pymupdf) rather than
+# pymupdf.* itself.
+module = "core.extraction.preprocessing"
+disallow_untyped_calls = false
 
 [tool.importlinter]
 root_package = "core"

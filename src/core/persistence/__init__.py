@@ -69,6 +69,14 @@ class InvoiceRepository(Protocol):
         ...
 
 
+class InvoiceAdmin(Protocol):
+    """Operator cleanup (e.g. removing a duplicate from the dashboard) — not something
+    core's validate/match/route logic ever calls, hence separate from InvoiceRepository
+    rather than one more method bolted onto it."""
+
+    def delete(self, invoice_id: str) -> None: ...
+
+
 class AuditLogWriter(Protocol):
     """Append-only by contract (Article VIII) — no update/delete method exists on this
     interface on purpose."""

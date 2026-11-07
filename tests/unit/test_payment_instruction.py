@@ -84,6 +84,27 @@ def test_build_payment_instruction_rejects_a_non_straight_through_decision():
         build_payment_instruction(invoice, vendor, review_result, approved_by="system", now=NOW)
 
 
+def test_build_payment_instruction_allows_a_non_straight_through_decision_when_human_approved():
+    # An admin accepting an invoice AP forwarded (api/routers/admin.py) — the router's
+    # own decision was never straight_through, but a real human explicitly approved it.
+    vendor = established_vendor()
+    invoice = make_invoice(
+        invoice_number="INV-2001", total=Decimal("750.00"), amount_due=Decimal("750.00")
+    )
+    review_result = RoutingResult(
+        decision=RoutingDecision.REVIEW, reason="confidence:field_review", overall_confidence=0.5
+    )
+
+    instruction = build_payment_instruction(
+        invoice, vendor, review_result, approved_by="admin", now=NOW, human_approved=True
+    )
+
+    assert instruction.amount == Decimal("750.00")
+    # The evidence trail still names the router's real original call, not a fabricated
+    # straight-through — approved_by is what actually names the human override.
+    assert instruction.approval_evidence == "admin:review:confidence:field_review"
+
+
 def test_mock_adapter_records_the_instruction():
     vendor = established_vendor()
     invoice = make_invoice()
