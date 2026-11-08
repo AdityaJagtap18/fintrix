@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import tempfile
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
@@ -237,11 +238,12 @@ async def upload_invoice(
     _UPLOADED_PDFS[document_id] = content
 
     # TesseractExtractor reads from a path (pdf2image/poppler need a real file), not
-    # bytes in memory — written under /tmp, same place any other scratch file for this
-    # process would go. Removed again once OCR has read it; the bytes themselves stay in
-    # _UPLOADED_PDFS for the review screen's PDF viewer to fetch later.
-    tmp_path = f"/tmp/{document_id}.pdf"
-    with open(tmp_path, "wb") as f:
+    # bytes in memory — written to a securely-created temp file (tempfile picks the
+    # directory and a unique, non-predictable name, unlike a hardcoded /tmp/<id> path).
+    # Removed again once OCR has read it; the bytes themselves stay in _UPLOADED_PDFS for
+    # the review screen's PDF viewer to fetch later.
+    fd, tmp_path = tempfile.mkstemp(suffix=".pdf")
+    with os.fdopen(fd, "wb") as f:
         f.write(content)
     try:
         extraction_request = ExtractionRequest(
