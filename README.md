@@ -1,4 +1,4 @@
-# Invoice IQ — Accounts Payable Automation with Human-in-the-Loop
+# FINTRIX — Accounts Payable Automation with Human-in-the-Loop
 
 **Author & maintainer:** Aditya Jagtap · **MitraEdge** · Pune, India
 **Proprietary — all rights reserved.** Not open source. See `LICENSE`.

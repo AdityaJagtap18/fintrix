@@ -1,4 +1,4 @@
-# Engineering Constitution — Invoice IQ
+# Engineering Constitution — FINTRIX
 
 **Version:** 1.0.0 · **Ratified:** 2026-08-28 · **Maintainer:** Aditya Jagtap, MitraEdge
 

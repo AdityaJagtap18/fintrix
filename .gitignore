@@ -40,5 +40,8 @@ src/web/.vite/
 tests/golden/private/
 *.pdf
 !docs/**/*.pdf
+# A generated, content-free blank page used only to exercise the review workspace's PDF
+# viewer in dev — not a real or sample invoice.
+!src/web/public/*.pdf
 data/raw/
 data/analyzed/

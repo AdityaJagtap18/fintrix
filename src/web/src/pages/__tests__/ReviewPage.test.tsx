@@ -1,6 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AuthProvider } from "../../auth/AuthContext";
 import { ReviewPage } from "../ReviewPage";
 
 // DocumentViewer renders a real PDF via pdf.js canvas APIs that jsdom can't back
@@ -13,6 +15,49 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+const DEMO_INVOICE = {
+  invoiceId: "inv-demo-1",
+  documentId: "doc-demo-1",
+  pdfUrl: "/sample-invoice.pdf",
+  vendorName: "Acme Supplies Pvt Ltd",
+  invoiceNumber: "INV-1042",
+  fields: [
+    {
+      name: "total",
+      value: "51000.00",
+      confidence: 0.58,
+      page: null,
+      region: null,
+      source: "model",
+      needsReview: true,
+      suggestedValue: "50662.50",
+    },
+  ],
+  lines: [],
+  issues: [
+    {
+      ruleId: "BR-03",
+      severity: "hard",
+      passed: false,
+      message: "subtotal + tax mismatch",
+      fields: ["total"],
+      explanation: "The total doesn't match subtotal plus tax.",
+    },
+  ],
+};
+
+function renderReviewPage(invoiceId = "inv-demo-1") {
+  return render(
+    <MemoryRouter initialEntries={[`/review/${invoiceId}`]}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/review/:invoiceId" element={<ReviewPage />} />
+        </Routes>
+      </AuthProvider>
+    </MemoryRouter>,
+  );
 }
 
 describe("ReviewPage", () => {
@@ -39,11 +84,13 @@ describe("ReviewPage", () => {
   });
 
   it("shows the claim conflict message when the invoice is already claimed", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ detail: { message: "already claimed", held_by: "rajesh" } }, 409),
-    );
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(DEMO_INVOICE))
+      .mockResolvedValueOnce(
+        jsonResponse({ detail: { message: "already claimed", held_by: "rajesh" } }, 409),
+      );
 
-    render(<ReviewPage />);
+    renderReviewPage();
 
     await waitFor(() => {
       expect(screen.getByTestId("claim-status-message")).toHaveTextContent(
@@ -53,11 +100,13 @@ describe("ReviewPage", () => {
   });
 
   it("renders the field editor and issue panel once the claim succeeds", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
-    );
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(DEMO_INVOICE))
+      .mockResolvedValueOnce(
+        jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
+      );
 
-    render(<ReviewPage />);
+    renderReviewPage();
 
     await waitFor(() => {
       expect(screen.getByRole("list", { name: "Extracted fields" })).toBeInTheDocument();
@@ -68,6 +117,7 @@ describe("ReviewPage", () => {
 
   it("submits an approval and shows the confirmation message", async () => {
     fetchMock
+      .mockResolvedValueOnce(jsonResponse(DEMO_INVOICE))
       .mockResolvedValueOnce(
         jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
       )
@@ -81,7 +131,7 @@ describe("ReviewPage", () => {
       );
 
     const user = userEvent.setup();
-    render(<ReviewPage />);
+    renderReviewPage();
 
     const approveButton = await screen.findByRole("button", { name: "Approve" });
     await user.click(approveButton);
@@ -90,20 +140,21 @@ describe("ReviewPage", () => {
       expect(screen.getByTestId("submitted-message")).toHaveTextContent("Review approved");
     });
 
-    const submitCall = fetchMock.mock.calls[1];
+    const submitCall = fetchMock.mock.calls[2];
     expect(submitCall[0]).toBe("/api/v1/review/inv-demo-1/submit");
     expect(JSON.parse(submitCall[1].body)).toEqual({ outcome: "approved" });
   });
 
   it("shows an error message if submission fails without losing the editor state", async () => {
     fetchMock
+      .mockResolvedValueOnce(jsonResponse(DEMO_INVOICE))
       .mockResolvedValueOnce(
         jsonResponse({ invoice_id: "inv-demo-1", claimed_by: "priya", expires_at: "2026-01-01T00:00:00" }),
       )
       .mockResolvedValueOnce(jsonResponse({ detail: "not claimed" }, 403));
 
     const user = userEvent.setup();
-    render(<ReviewPage />);
+    renderReviewPage();
 
     const approveButton = await screen.findByRole("button", { name: "Approve" });
     await user.click(approveButton);

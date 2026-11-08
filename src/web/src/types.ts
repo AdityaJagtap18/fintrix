@@ -53,6 +53,10 @@ export interface ReviewInvoice {
   fields: ExtractedField[];
   lines: LineItem[];
   issues: ValidationIssue[];
+  /** Present when the invoice came from GET /api/v1/invoices/{id}; absent on the static
+   * mock used before that endpoint existed. */
+  status?: string;
+  createdAt?: string;
 }
 
 export type ReviewOutcome = "approved" | "rejected";

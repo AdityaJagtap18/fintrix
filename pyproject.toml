@@ -1,7 +1,7 @@
 [project]
 name = "ap-automation"
 version = "0.1.0"
-description = "Invoice IQ — Accounts Payable Automation with Human-in-the-Loop (MitraEdge)"
+description = "FINTRIX — Accounts Payable Automation with Human-in-the-Loop (MitraEdge)"
 authors = [{ name = "Aditya Jagtap", email = "adiraj2503@gmail.com" }]
 requires-python = ">=3.11"
 readme = "README.md"

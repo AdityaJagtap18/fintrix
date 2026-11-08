@@ -1,31 +1,42 @@
 import { useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { getInvoiceDetail } from "../api/invoicesClient";
 import { AlreadyClaimedError, claimInvoice, releaseInvoice, submitReview } from "../api/reviewClient";
 import { DocumentViewer } from "../components/DocumentViewer";
 import { FieldEditor } from "../components/FieldEditor";
 import { IssuePanel } from "../components/IssuePanel";
-import { mockInvoice } from "../data/mockInvoice";
-import type { ExtractedField, ReviewOutcome } from "../types";
+import { useAuth } from "../auth/useAuth";
+import type { ExtractedField, ReviewInvoice, ReviewOutcome } from "../types";
 
-// Placeholder for real auth (T-062) — mirrors the dev-mode placeholder in
-// src/api/dependencies.py. Both need replacing together.
-const CURRENT_REVIEWER = "priya";
-
-type ClaimStatus = "claiming" | "claimed" | "conflict" | "error";
+type ClaimStatus = "loading" | "claiming" | "claimed" | "conflict" | "error";
 
 export function ReviewPage() {
-  const invoice = mockInvoice; // placeholder pending GET /invoices/{id} — see mockInvoice.ts
-  const [fields, setFields] = useState<ExtractedField[]>(invoice.fields);
+  const { invoiceId } = useParams<{ invoiceId: string }>();
+  const { user } = useAuth();
+  const reviewer = user?.email ?? "unknown";
+
+  const [invoice, setInvoice] = useState<ReviewInvoice | null>(null);
+  const [fields, setFields] = useState<ExtractedField[]>([]);
   const [selectedFieldName, setSelectedFieldName] = useState<string | null>(null);
-  const [claimStatus, setClaimStatus] = useState<ClaimStatus>("claiming");
+  const [claimStatus, setClaimStatus] = useState<ClaimStatus>("loading");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittedOutcome, setSubmittedOutcome] = useState<ReviewOutcome | null>(null);
   const claimedRef = useRef(false);
 
   useEffect(() => {
+    if (!invoiceId) return;
     let cancelled = false;
+    setClaimStatus("loading");
 
-    claimInvoice(invoice.invoiceId, CURRENT_REVIEWER)
+    getInvoiceDetail(invoiceId)
+      .then((inv) => {
+        if (cancelled) return;
+        setInvoice(inv);
+        setFields(inv.fields);
+        setClaimStatus("claiming");
+        return claimInvoice(inv.invoiceId, reviewer);
+      })
       .then(() => {
         if (cancelled) return;
         claimedRef.current = true;
@@ -35,21 +46,22 @@ export function ReviewPage() {
         if (cancelled) return;
         if (err instanceof AlreadyClaimedError) {
           setStatusMessage(`This invoice is already claimed by ${err.heldBy}.`);
+          setClaimStatus("conflict");
         } else {
-          setStatusMessage(err instanceof Error ? err.message : "Could not claim this invoice.");
+          setStatusMessage(err instanceof Error ? err.message : "Could not load this invoice.");
+          setClaimStatus("error");
         }
-        setClaimStatus(err instanceof AlreadyClaimedError ? "conflict" : "error");
       });
 
     return () => {
       cancelled = true;
-      // AC-03: don't hold the lock past the review screen being open.
       if (claimedRef.current) {
         claimedRef.current = false;
-        void releaseInvoice(invoice.invoiceId, CURRENT_REVIEWER);
+        void releaseInvoice(invoiceId, reviewer);
       }
     };
-  }, [invoice.invoiceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceId]);
 
   function handleSelectField(name: string) {
     setSelectedFieldName(name);
@@ -60,7 +72,6 @@ export function ReviewPage() {
   }
 
   function handleAcceptSuggestion(name: string) {
-    // AC-02.3: one click, no retyping the suggested value.
     setFields((prev) =>
       prev.map((field) =>
         field.name === name && field.suggestedValue !== null
@@ -71,11 +82,12 @@ export function ReviewPage() {
   }
 
   async function handleDecision(outcome: ReviewOutcome) {
+    if (!invoice) return;
     setSubmitting(true);
     setStatusMessage(null);
     try {
-      await submitReview(invoice.invoiceId, CURRENT_REVIEWER, outcome);
-      claimedRef.current = false; // the backend releases the claim on submit
+      await submitReview(invoice.invoiceId, reviewer, outcome);
+      claimedRef.current = false;
       setSubmittedOutcome(outcome);
     } catch (err) {
       setStatusMessage(err instanceof Error ? err.message : "Could not submit this review.");
@@ -84,30 +96,44 @@ export function ReviewPage() {
     }
   }
 
-  if (claimStatus === "claiming") {
-    return <p>Claiming invoice…</p>;
+  if (!invoiceId) {
+    return <p role="alert">No invoice selected. Pick one from the Invoices list.</p>;
+  }
+  if (claimStatus === "loading" || claimStatus === "claiming") {
+    return <p>Loading invoice…</p>;
   }
   if (claimStatus === "conflict" || claimStatus === "error") {
     return (
-      <p role="alert" data-testid="claim-status-message">
-        {statusMessage}
-      </p>
+      <div>
+        <p role="alert" data-testid="claim-status-message">
+          {statusMessage}
+        </p>
+        <Link to="/invoices">← Back to invoices</Link>
+      </div>
     );
   }
   if (submittedOutcome) {
     return (
-      <p data-testid="submitted-message">
-        Review {submittedOutcome}. Thanks, {CURRENT_REVIEWER}.
-      </p>
+      <div>
+        <p data-testid="submitted-message">
+          Review {submittedOutcome}. Thanks, {user?.name ?? reviewer}.
+        </p>
+        <Link to="/invoices">← Back to invoices</Link>
+      </div>
     );
   }
+  if (!invoice) return null;
 
   return (
     <div className="review-page">
-      <header>
+      <nav className="review-page__breadcrumb">
+        <Link to="/invoices">Invoices</Link> / Review Invoice
+      </nav>
+      <header className="review-page__header">
         <h1>
           {invoice.vendorName} — {invoice.invoiceNumber}
         </h1>
+        {invoice.issues.some((i) => !i.passed) && <span className="badge badge--warning">Needs Attention</span>}
       </header>
 
       {statusMessage && (
@@ -129,10 +155,10 @@ export function ReviewPage() {
           />
           <IssuePanel issues={invoice.issues} />
           <div className="review-page__actions">
-            <button type="button" disabled={submitting} onClick={() => handleDecision("approved")}>
+            <button type="button" disabled={submitting} onClick={() => handleDecision("approved")} className="btn btn--primary">
               Approve
             </button>
-            <button type="button" disabled={submitting} onClick={() => handleDecision("rejected")}>
+            <button type="button" disabled={submitting} onClick={() => handleDecision("rejected")} className="btn btn--danger">
               Reject
             </button>
           </div>
