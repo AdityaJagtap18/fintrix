@@ -51,6 +51,7 @@ h2 {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: 20px;
+  min-width: 0;
 }
 
 .card__sub {
@@ -139,8 +140,14 @@ h2 {
   color: var(--color-error-text);
 }
 
+.data-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .data-table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -262,6 +269,7 @@ h2 {
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   flex: 1;
+  min-width: 0;
   max-width: 420px;
 }
 
@@ -270,8 +278,10 @@ h2 {
   background: transparent;
   outline: none;
   flex: 1;
+  min-width: 0;
   font: inherit;
   font-size: 13px;
+  text-overflow: ellipsis;
 }
 
 .app-topbar__search kbd {
@@ -720,6 +730,7 @@ h2 {
 
 .invoices-page__filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -730,10 +741,11 @@ h2 {
   padding: 8px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+  min-width: 0;
 }
 
 .invoices-page__filters input[type="search"] {
-  flex: 1;
+  flex: 1 1 200px;
 }
 
 .invoices-page__pagination {
@@ -866,12 +878,35 @@ h2 {
 
 .field-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(60px, 140px) minmax(0, 1fr) auto;
   gap: 0.5rem;
   align-items: center;
   padding: 0.4rem 0.5rem;
   border-radius: 4px;
   cursor: pointer;
+}
+
+.field-row label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-row span[id^="field-"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.field-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.field-row button {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .field-row[data-selected="true"] {
@@ -1076,16 +1111,6 @@ h2 {
     padding: 14px;
   }
 
-  .data-table {
-    display: block;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-
-  .invoices-page__filters {
-    flex-wrap: wrap;
-  }
-
   .app-topbar__nav-toggle {
     display: block;
   }
@@ -1119,9 +1144,5 @@ h2 {
     border: none;
     z-index: 20;
     padding: 0;
-  }
-
-  .dashboard-page__bottom .card:first-child {
-    overflow-x: auto;
   }
 }

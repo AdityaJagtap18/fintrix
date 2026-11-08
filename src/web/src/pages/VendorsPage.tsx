@@ -20,26 +20,28 @@ export function VendorsPage() {
       <h1>Vendors</h1>
       <p>Vendor master records and processing history.</p>
       {error && <p role="alert">{error}</p>}
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Vendor</th>
-            <th>Tax ID</th>
-            <th>Invoices processed</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {vendors.map((v) => (
-            <tr key={v.vendorId}>
-              <td>{v.name}</td>
-              <td>{v.taxId ?? "—"}</td>
-              <td>{v.invoicesProcessed}</td>
-              <td>{v.isActive ? "Active" : "Inactive"}</td>
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Vendor</th>
+              <th>Tax ID</th>
+              <th>Invoices processed</th>
+              <th>Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {vendors.map((v) => (
+              <tr key={v.vendorId}>
+                <td>{v.name}</td>
+                <td>{v.taxId ?? "—"}</td>
+                <td>{v.invoicesProcessed}</td>
+                <td>{v.isActive ? "Active" : "Inactive"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -77,32 +77,34 @@ export function DashboardPage() {
             </div>
             <Link to="/invoices">View all invoices →</Link>
           </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Vendor</th>
-                <th>Invoice ID</th>
-                <th>Date</th>
-                <th>Amount</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.recentInvoices.map((inv) => (
-                <tr key={inv.invoiceId}>
-                  <td>{inv.vendorName}</td>
-                  <td>
-                    <Link to={`/review/${inv.invoiceId}`}>{inv.invoiceId}</Link>
-                  </td>
-                  <td>{formatDate(inv.invoiceDate)}</td>
-                  <td>{formatINR(inv.amount)}</td>
-                  <td>
-                    <InvoiceStatusBadge status={inv.status} />
-                  </td>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Vendor</th>
+                  <th>Invoice ID</th>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {metrics.recentInvoices.map((inv) => (
+                  <tr key={inv.invoiceId}>
+                    <td>{inv.vendorName}</td>
+                    <td>
+                      <Link to={`/review/${inv.invoiceId}`}>{inv.invoiceId}</Link>
+                    </td>
+                    <td>{formatDate(inv.invoiceDate)}</td>
+                    <td>{formatINR(inv.amount)}</td>
+                    <td>
+                      <InvoiceStatusBadge status={inv.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="card">

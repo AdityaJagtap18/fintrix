@@ -134,65 +134,67 @@ export function InvoicesPage() {
         <p>Loading…</p>
       ) : (
         <>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    checked={selected.size > 0 && selected.size === sorted.length}
-                    onChange={toggleSelectAll}
-                    aria-label="Select all invoices"
-                  />
-                </th>
-                <th>Invoice ID</th>
-                <th className="sortable" onClick={() => toggleSort("vendorName")}>
-                  Vendor {sortKey === "vendorName" ? (sortDir === "asc" ? "↑" : "↓") : ""}
-                </th>
-                <th className="sortable" onClick={() => toggleSort("invoiceDate")}>
-                  Invoice Date {sortKey === "invoiceDate" ? (sortDir === "asc" ? "↑" : "↓") : ""}
-                </th>
-                <th className="sortable" onClick={() => toggleSort("amount")}>
-                  Amount {sortKey === "amount" ? (sortDir === "asc" ? "↑" : "↓") : ""}
-                </th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((inv) => (
-                <tr key={inv.invoiceId}>
-                  <td>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>
                     <input
                       type="checkbox"
-                      checked={selected.has(inv.invoiceId)}
-                      onChange={() => toggleSelected(inv.invoiceId)}
-                      aria-label={`Select ${inv.invoiceId}`}
+                      checked={selected.size > 0 && selected.size === sorted.length}
+                      onChange={toggleSelectAll}
+                      aria-label="Select all invoices"
                     />
-                  </td>
-                  <td>
-                    <Link to={`/review/${inv.invoiceId}`}>{inv.invoiceId}</Link>
-                  </td>
-                  <td>{inv.vendorName}</td>
-                  <td>{formatDate(inv.invoiceDate)}</td>
-                  <td>{formatINR(inv.amount)}</td>
-                  <td>
-                    <InvoiceStatusBadge status={inv.status} />
-                  </td>
-                  <td>
-                    <Link to={`/review/${inv.invoiceId}`} className="btn btn--small">
-                      Review
-                    </Link>
-                  </td>
+                  </th>
+                  <th>Invoice ID</th>
+                  <th className="sortable" onClick={() => toggleSort("vendorName")}>
+                    Vendor {sortKey === "vendorName" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                  </th>
+                  <th className="sortable" onClick={() => toggleSort("invoiceDate")}>
+                    Invoice Date {sortKey === "invoiceDate" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                  </th>
+                  <th className="sortable" onClick={() => toggleSort("amount")}>
+                    Amount {sortKey === "amount" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                  </th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-              {sorted.length === 0 && (
-                <tr>
-                  <td colSpan={7}>No invoices match these filters.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sorted.map((inv) => (
+                  <tr key={inv.invoiceId}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(inv.invoiceId)}
+                        onChange={() => toggleSelected(inv.invoiceId)}
+                        aria-label={`Select ${inv.invoiceId}`}
+                      />
+                    </td>
+                    <td>
+                      <Link to={`/review/${inv.invoiceId}`}>{inv.invoiceId}</Link>
+                    </td>
+                    <td>{inv.vendorName}</td>
+                    <td>{formatDate(inv.invoiceDate)}</td>
+                    <td>{formatINR(inv.amount)}</td>
+                    <td>
+                      <InvoiceStatusBadge status={inv.status} />
+                    </td>
+                    <td>
+                      <Link to={`/review/${inv.invoiceId}`} className="btn btn--small">
+                        Review
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+                {sorted.length === 0 && (
+                  <tr>
+                    <td colSpan={7}>No invoices match these filters.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
 
           <div className="invoices-page__pagination">
             <span>
