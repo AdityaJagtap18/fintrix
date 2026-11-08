@@ -1,0 +1,7 @@
+# CVE-2025-47273: path-traversal in setuptools' deprecated PackageIndex (easy_install-style
+# index downloads), which the backend image never calls. The finding comes from pip's own
+# bundled SBOM metadata (vendor.txt / bom.cdx.json inside the pip wheel itself, which
+# references setuptools 70.3.0 as a historical build-provenance record) — not an installed,
+# importable copy. pip and setuptools are both upgraded to current releases in Dockerfile;
+# there is no vulnerable code actually present to fix.
+CVE-2025-47273

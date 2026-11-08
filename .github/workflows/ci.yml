@@ -76,3 +76,8 @@ jobs:
           image-ref: fintrix-${{ matrix.service }}:${{ github.sha }}
           severity: CRITICAL,HIGH
           exit-code: "1"
+          # Only fail on vulnerabilities a rebuild could actually fix (apt/apk upgrade in
+          # the Dockerfiles handles those) — blocking every deploy on CVEs with no upstream
+          # patch yet isn't actionable and just defeats the gate.
+          ignore-unfixed: true
+          trivyignores: .trivyignore
