@@ -1,0 +1,15 @@
+services:
+  # Host ports 8020/8021 (not 8000/8080) — the VPS already has another project's gunicorn
+  # on 127.0.0.1:8000 and several other containers on 8080/8081/18080/18081/4201.
+  backend:
+    image: ghcr.io/adityajagtap18/fintrix-backend:latest
+    restart: unless-stopped
+    env_file: .env.prod
+    ports:
+      - "127.0.0.1:8020:8000"
+
+  frontend:
+    image: ghcr.io/adityajagtap18/fintrix-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8021:80"

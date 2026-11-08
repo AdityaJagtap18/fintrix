@@ -1,0 +1,6 @@
+node_modules
+dist
+.vite
+responsive-qa/screenshots
+responsive-qa/reports
+responsive-qa/.auth

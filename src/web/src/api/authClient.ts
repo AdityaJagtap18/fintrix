@@ -1,3 +1,5 @@
+import { API_ORIGIN } from "./config";
+
 export interface AuthUser {
   email: string;
   name: string;
@@ -11,7 +13,7 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
-const API_BASE = "/api/v1/auth";
+const API_BASE = `${API_ORIGIN}/api/v1/auth`;
 
 export async function login(email: string, password: string): Promise<{ token: string; user: AuthUser }> {
   const response = await fetch(`${API_BASE}/login`, {

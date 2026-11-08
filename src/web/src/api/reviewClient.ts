@@ -1,6 +1,7 @@
 import type { AssignmentResponseDto, ClaimResponseDto, ReviewOutcome } from "../types";
+import { API_ORIGIN } from "./config";
 
-const API_BASE = "/api/v1/review";
+const API_BASE = `${API_ORIGIN}/api/v1/review`;
 
 export class AlreadyClaimedError extends Error {
   constructor(

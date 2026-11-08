@@ -9,6 +9,11 @@ license = { text = "Proprietary" }
 dependencies = [
     "rapidfuzz>=3.9",
     "python-dateutil>=2.9",
+    # Needed to actually run the shipped app (src/api), not just to test it — kept in base
+    # `dependencies` rather than `dev` so the production image installs exactly this list
+    # plus `.[ocr]`, with no linting/test tooling along for the ride.
+    "fastapi>=0.112",
+    "uvicorn[standard]>=0.30",
 ]
 
 [project.optional-dependencies]
@@ -21,13 +26,9 @@ dev = [
     "bandit>=1.7",
     "pre-commit>=3.7",
     "import-linter>=2.0",
-    # Real, tested code in src/api and src/functions/orchestrator depends on these — both
-    # are fully FOSS and need no external service to import or to run tests (the durable
-    # orchestrator is unit tested by driving the generator directly against a fake context,
-    # no runtime involved at all; FastAPI is tested via TestClient, no server needed).
-    "fastapi>=0.112",
+    # FastAPI's TestClient is httpx-based — this is a test-only dependency, unlike
+    # fastapi/uvicorn above which the running app itself needs.
     "httpx>=0.27",
-    "uvicorn[standard]>=0.30",
 ]
 # The Tesseract OCR adapter (core/extraction/tesseract_ocr.py) imports these lazily, only
 # inside the functions that actually call the engine — so unit tests (which inject fake

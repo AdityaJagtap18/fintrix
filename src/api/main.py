@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,11 +11,15 @@ from api.routers import auth, dashboard, invoices, review, vendors
 
 app = FastAPI(title="FINTRIX Review API", version="0.1.0")
 
-# Dev-only: the Vite dev server (:5173) calls this API (:8000) cross-origin. Tighten this
-# to the real deployed frontend origin before this ever leaves a laptop.
+# Defaults to the Vite dev server's origin (:5173 calling :8000 cross-origin). In
+# production, nginx serves the frontend and proxies /api/* to this backend under the
+# same domain, so the browser's calls are same-origin and CORS doesn't come into play at
+# all — ALLOWED_ORIGINS exists for the rarer case something still calls this API directly
+# from a different origin (e.g. a future staging frontend on its own subdomain).
+_allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[origin.strip() for origin in _allowed_origins.split(",") if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

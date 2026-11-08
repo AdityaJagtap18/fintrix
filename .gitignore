@@ -18,6 +18,7 @@ build/
 *.local.env
 .env.*
 !.env.example
+!.env.prod.example
 
 # Node / React (src/web)
 src/web/node_modules/

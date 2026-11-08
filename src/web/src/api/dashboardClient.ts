@@ -1,3 +1,5 @@
+import { API_ORIGIN } from "./config";
+
 export interface ProcessingVolumePoint {
   date: string;
   count: number;
@@ -30,7 +32,7 @@ export interface DashboardMetrics {
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const response = await fetch("/api/v1/dashboard/metrics");
+  const response = await fetch(`${API_ORIGIN}/api/v1/dashboard/metrics`);
   if (!response.ok) throw new Error(`failed to load dashboard metrics: ${response.status}`);
   return response.json();
 }

@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // Review API runs on :8000 (make run-api) — proxied so the browser only ever talks
-      // to one origin in dev, matching how Static Web Apps fronts the API in prod.
+      // to one origin in dev, matching how nginx fronts both under one domain in prod.
       "/api": "http://localhost:8000",
     },
   },

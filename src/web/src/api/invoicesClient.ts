@@ -1,4 +1,5 @@
 import type { ReviewInvoice } from "../types";
+import { API_ORIGIN } from "./config";
 
 export interface InvoiceSummary {
   invoiceId: string;
@@ -23,7 +24,7 @@ export interface InvoiceListParams {
   pageSize?: number;
 }
 
-const API_BASE = "/api/v1/invoices";
+const API_BASE = `${API_ORIGIN}/api/v1/invoices`;
 
 export async function getInvoiceDetail(invoiceId: string): Promise<ReviewInvoice> {
   const response = await fetch(`${API_BASE}/${invoiceId}`);
