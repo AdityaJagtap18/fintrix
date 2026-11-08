@@ -54,10 +54,19 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
+          # GHCR packages are private by default, so the VPS needs to authenticate to pull
+          # them. Rather than making these (proprietary-licensed) images public, or minting
+          # a long-lived PAT just for this, log in with this run's own short-lived
+          # GITHUB_TOKEN right before pulling — it's already scoped for packages above.
+          envs: GHCR_TOKEN,GHCR_ACTOR
           script: |
             set -e
             cd ${{ secrets.VPS_DEPLOY_PATH }}
             git fetch origin master && git reset --hard origin/master
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull
             docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
             docker image prune -f
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_ACTOR: ${{ github.actor }}
