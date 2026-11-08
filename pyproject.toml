@@ -21,25 +21,28 @@ dev = [
     "bandit>=1.7",
     "pre-commit>=3.7",
     "import-linter>=2.0",
-    # Real, tested code in src/api and src/functions/orchestrator depends on these —
-    # neither needs live Azure credentials to import or to run tests (the Durable
-    # Functions orchestrator is unit tested by driving the generator directly, no
-    # Functions host involved; FastAPI is tested via TestClient, no server needed).
+    # Real, tested code in src/api and src/functions/orchestrator depends on these — both
+    # are fully FOSS and need no external service to import or to run tests (the durable
+    # orchestrator is unit tested by driving the generator directly against a fake context,
+    # no runtime involved at all; FastAPI is tested via TestClient, no server needed).
     "fastapi>=0.112",
     "httpx>=0.27",
-    "azure-functions>=1.20",
-    "azure-functions-durable>=1.2",
-]
-# Added incrementally as later Phase 2 pieces land — kept separate because these genuinely
-# aren't exercised by any test yet (T-041 extraction adapter, T-047 SQL repos, T-048 blob/
-# service bus adapters) and some need real Azure resources or credentials to be
-# meaningfully testable at all.
-azure = [
-    "azure-ai-documentintelligence>=1.0.0b4",
-    "azure-identity>=1.17",
-    "azure-storage-blob>=12.20",
-    "azure-servicebus>=7.12",
     "uvicorn[standard]>=0.30",
+]
+# The Tesseract OCR adapter (core/extraction/tesseract_ocr.py) imports these lazily, only
+# inside the functions that actually call the engine — so unit tests (which inject fake
+# pdf_to_images/ocr_image callables) never need them installed. Kept separate because they
+# also need system binaries (the `tesseract-ocr` and `poppler-utils` packages) that aren't
+# installed everywhere a plain `pip install` runs; see the Dockerfile for the apt packages.
+ocr = [
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.17",
+    "Pillow>=10.4",
+]
+# Added incrementally as later Phase 2 pieces land — kept separate because this genuinely
+# isn't exercised by any test yet (T-047 SQL repos) and needs a real Postgres instance to be
+# meaningfully testable at all.
+db = [
     "sqlalchemy>=2.0",
 ]
 
@@ -63,8 +66,8 @@ branch = true
 # Constitution Article XI: >=90% on src/core specifically, >=80% overall. Coverage.py's
 # fail_under is a single blended number, not per-path — 90 here is deliberately the
 # stricter of the two, so this run can never silently satisfy "80% overall" while core
-# itself has drifted below 90. If a future infrastructure-heavy module (real Azure SDK
-# adapters, hard to unit test meaningfully) drags the blended number down, split this into
+# itself has drifted below 90. If a future infrastructure-heavy module (a real-engine
+# adapter, hard to unit test meaningfully) drags the blended number down, split this into
 # two `coverage report --include` runs rather than lowering this number.
 fail_under = 90
 show_missing = true
@@ -90,8 +93,8 @@ module = "rapidfuzz.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-# The azure-functions-durable package ships no py.typed marker / stubs as of this writing.
-module = "azure.*"
+# Neither pytesseract nor pdf2image ships a py.typed marker / stubs as of this writing.
+module = ["pytesseract.*", "pdf2image.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]
@@ -103,12 +106,12 @@ name = "Core stays pure (Article I)"
 type = "forbidden"
 # Deliberately not the whole "core" package: constitution Article I's own enforcement grep
 # checks exactly this set (models.py, validation/, routing/, matching/) and no more —
-# core.extraction.document_intelligence is the one sanctioned exception (plan.md §2: "the
-# only file importing the DI SDK"), and persistence/review are Protocol-only by
-# construction so an accidental Azure import there is exactly as bad as anywhere else. The
-# other extraction submodules (base, classification, splitting, cache) are listed
-# explicitly so *they* stay held to the same bar even though document_intelligence.py,
-# their sibling, isn't.
+# persistence/review are Protocol-only by construction so an accidental infra import there
+# is exactly as bad as anywhere else. The Tesseract OCR adapter (core.extraction.
+# tesseract_ocr) needs no exception here, unlike the Azure Document Intelligence adapter it
+# replaced: it only ever reaches for pytesseract/pdf2image via a lazy import inside the
+# function that calls the engine, never at module level, so it's held to the same pure-core
+# bar as every other extraction submodule.
 source_modules = [
     "core.models",
     "core.validation",
@@ -120,6 +123,7 @@ source_modules = [
     "core.extraction.classification",
     "core.extraction.splitting",
     "core.extraction.cache",
+    "core.extraction.tesseract_ocr",
 ]
 forbidden_modules = [
     "azure",

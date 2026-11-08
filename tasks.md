@@ -17,20 +17,20 @@
   *Done when:* `make lint` and `make test` both run and exit cleanly on an empty suite.
 - **T-002** Author `.specify/memory/constitution.md` and both spec documents into the repo.
   *Done when:* `docs/` contains constitution, spec, plan, tasks.
-- **T-003** `[P]` Bicep: managed identity, storage with lifecycle tiering, containers `raw/analyzed/quarantine/feedback/training`. **Req:** NFR-031, NFR-041.
-  *Done when:* `az deployment group create` succeeds and `allowSharedKeyAccess` is `false`.
-- **T-004** `[P]` Bicep: Document Intelligence account with `disableLocalAuth: true`, RBAC role assignment to the identity. **Req:** Article III.
-  *Done when:* a key-based call returns 401 and a token-based call returns 200.
-- **T-005** `[P]` Bicep: Service Bus with queues `invoice-extract`, `invoice-review`, `erp-post`, dead-lettering enabled. **Req:** AC-11.3.
-- **T-006** `[P]` Bicep: Azure SQL with Entra-only authentication, Log Analytics, App Insights.
-- **T-007** `[P]` Bicep: Container Apps environment, Functions Premium plan, both with the user-assigned identity.
-- **T-008** Entra app registration with federated credentials; GitHub environments `dev` and `production` with required reviewers on `production`. **Req:** Article III.
-  *Done when:* a workflow authenticates to Azure with no stored secret.
-- **T-009** `[P]` `ci.yml`: ruff, mypy strict, bandit, pytest with 80% coverage gate, Bicep lint, container build, Trivy scan.
-- **T-010** `[P]` `cd.yml`: build/push image, deploy dev, smoke test, gated prod deploy with 10% canary and automatic rollback. **Req:** plan §9.
-- **T-011** `[P]` `infra-plan.yml` posting an `az deployment what-if` diff as a PR comment. **Req:** Article IX.
-- **T-012** `[P]` Import-linter rule enforcing that `src/core` imports nothing internal and no SDK. **Req:** Article I.
-  *Done when:* adding `import azure.storage.blob` to a core module fails CI.
+- **T-003** `[P]` Docker Compose service for MinIO with lifecycle policies configured, buckets/prefixes `raw/analyzed/quarantine/feedback/training`. **Req:** NFR-031, NFR-041.
+  *Done when:* `docker compose up minio` succeeds and the app's service account can only reach these buckets (no root credentials baked into the app image).
+- **T-004** `[P]` `tesseract-ocr` and `poppler-utils` added to the Dockerfile's apt packages; `pip install .[ocr]` installs `pytesseract`/`pdf2image`. **Req:** Article III (no credentials needed at all — this engine runs locally).
+  *Done when:* the built image can OCR a sample PDF with no network call and no API key.
+- **T-005** `[P]` Postgres `jobs` table migration (work queues, replacing a message-broker dependency) with a dead-letter column and retry count. **Req:** AC-11.3.
+- **T-006** `[P]` PostgreSQL schema migration: core tables, roles with least-privilege grants (Article VIII's append-only `audit_log` grant included), connection via a non-superuser app role.
+- **T-007** `[P]` Docker Compose services for the FastAPI app and the orchestration worker, both built from the repo's Dockerfiles. **Req:** plan §9.
+- **T-008** GitHub Actions: generate an SSH deploy keypair, add the private key as a repository secret, add the public key to the VPS's `authorized_keys`; GitHub environments `dev` and `production` with required reviewers on `production`. **Req:** Article III.
+  *Done when:* a workflow deploys over SSH with no password and no long-lived cloud credential.
+- **T-009** `[P]` `ci.yml`: ruff, mypy strict, bandit, pytest with 80% coverage gate, container build, Trivy scan.
+- **T-010** `[P]` `cd.yml`: build/push image to GHCR, deploy dev, smoke test, gated prod deploy (SSH pull + restart) with automatic rollback to the previous image tag on failure. **Req:** plan §9.
+- **T-011** `[P]` `deploy-plan.yml` posting a diff of what changed in `docker-compose.prod.yml`/nginx config as a PR comment. **Req:** Article IX.
+- **T-012** `[P]` Import-linter rule enforcing that `src/core` imports nothing internal and no infra SDK. **Req:** Article I.
+  *Done when:* adding `import sqlalchemy` to a core module fails CI.
 
 ---
 
@@ -73,12 +73,12 @@
 - **T-044** `[P]` Content-hash cache checked before any billed call. **Req:** FR-003, Article XII.
   *Done when:* re-submitting an identical file records zero extraction charges.
 - **T-045** `[P]` Blank and separator page filter before extraction. **Req:** NFR-042.
-- **T-046** SQL schema and migrations for every table in plan §3, including the unique constraint on `(vendor_id, invoice_number)` and INSERT/SELECT-only grants on `audit_log`. **Req:** FR-090, AC-10.2.
+- **T-046** PostgreSQL schema and migrations for every table in plan §3, including the unique constraint on `(vendor_id, invoice_number)` and INSERT/SELECT-only grants on `audit_log`. **Req:** FR-090, AC-10.2.
   *Done when:* an UPDATE against `audit_log` as the application role is rejected by the database.
-- **T-047** `[P]` SQL repository implementations of the Phase 1 protocols.
-- **T-048** `[P]` Blob and Service Bus adapters using Managed Identity only.
-- **T-049** Ingestion triggers: Event Grid blob trigger and authenticated HTTP upload; hash, dedupe, page count, quarantine unopenable files. **Req:** FR-001..005.
-- **T-050** Mailbox ingestion via a Logic App writing attachments to `raw/`. **Req:** FR-001.
+- **T-047** `[P]` PostgreSQL repository implementations of the Phase 1 protocols.
+- **T-048** `[P]` MinIO (blob) and Postgres `jobs`-table (work queue) adapters, authenticated with a scoped service-account key read from the environment — never a shared root credential.
+- **T-049** Ingestion triggers: a MinIO bucket-notification webhook and authenticated HTTP upload; hash, dedupe, page count, quarantine unopenable files. **Req:** FR-001..005.
+- **T-050** Mailbox ingestion via an IMAP poller writing attachments to `raw/`. **Req:** FR-001.
 - **T-050a** ACS Advanced Messaging provisioning: Meta Business account, WhatsApp Business
   number, message templates for acknowledgement and final status. **Blocked by Q-08.**
   *Note:* number approval takes days — start this at the beginning of Phase 2, not the end.
@@ -89,11 +89,14 @@
 - **T-050d** `[P]` Outbound notification service: acknowledgement on accept, status on terminal
   state, queued and retried, delivery failure never blocks processing. **Req:** FR-001a.
   *Done when:* a message containing an amount or bank detail fails a unit test (FR-001b).
-- **T-050e** `[P]` API Management in front of the upload endpoint with rate limiting and Entra
-  validation. **Req:** FR-001, NFR-021.
-- **T-050f** `[P]` PII detection and redaction via Azure AI Language before any log write. **Req:** NFR-025.
-  *Done when:* a name or address present in a document never appears in App Insights.
-- **T-051** Durable orchestrator implementing plan §4, with sub-orchestration fan-out for splits and the 48-hour escalation timer. **Req:** FR-011, AC-11.4.
+- **T-050e** `[P]` nginx in front of the upload endpoint with rate limiting (`limit_req`) and
+  Keycloak OIDC bearer validation. **Req:** FR-001, NFR-021.
+- **T-050f** `[P]` PII detection and redaction via a self-hosted Presidio instance before any log
+  write. **Req:** NFR-025.
+  *Done when:* a name or address present in a document never appears in the Loki log store.
+- **T-051** Durable orchestrator implementing plan §4 against `OrchestrationContext`
+  (`src/functions/orchestrator/context.py`), with sub-orchestration fan-out for splits and the
+  48-hour escalation timer. **Req:** FR-011, AC-11.4.
   *Done when:* the orchestrator function contains no IO and replays deterministically.
 - **T-052** Activity functions — one thin module per pipeline stage, each idempotent on `document_id`. **Req:** Article V.
   *Done when:* replaying any activity twice leaves identical state and no duplicate ERP post.
@@ -107,7 +110,7 @@
 - **T-060** Review API: queue listing with filters, claim with exclusive optimistic lock, release, submit with corrections. **Req:** FR-060..065.
   *Done when:* AC-03.1 and AC-03.3 pass — a second claim returns conflict, a lockless submit is rejected.
 - **T-061** `[P]` Lock expiry sweeper returning abandoned invoices to the queue. **Req:** FR-062, AC-03.2.
-- **T-062** `[P]` Entra ID authentication and app-role authorisation for Reviewer, Approver, Administrator, Auditor. **Req:** NFR-021, NFR-022.
+- **T-062** `[P]` Keycloak (OIDC) authentication and app-role authorisation for Reviewer, Approver, Administrator, Auditor. **Req:** NFR-021, NFR-022.
 - **T-063** `[P]` Short-lived user-delegated document URLs. **Req:** NFR-024.
 - **T-064** `[P]` Approver-role enforcement on bank-detail-change approvals. **Req:** FR-066, AC-05.3.
 - **T-065** React shell: routing, auth, queue view with filters and sorting. **Req:** FR-060.
@@ -120,9 +123,9 @@
 - **T-071** Submission raises the Durable external event and records corrections. **Req:** FR-070, AC-02.4.
 - **T-072** `[P]` Keyboard-first interaction — tab between review fields, enter to accept a suggestion, submit without touching the mouse.
   *Done when:* a reviewer completes a two-field correction in under 15 seconds unassisted.
-- **T-073a** `[P]` Exception explainer over Azure OpenAI: structured-input-only prompt, output
-  validated so every number traces to an input field, graceful degradation to raw rule outcomes.
-  **Req:** FR-068, FR-069, AC-14.1..14.4.
+- **T-073a** `[P]` Exception explainer over a self-hosted Ollama model: structured-input-only
+  prompt, output validated so every number traces to an input field, graceful degradation to raw
+  rule outcomes. **Req:** FR-068, FR-069, AC-14.1..14.4.
   *Done when:* disabling the endpoint still allows a reviewer to complete a review.
 - **T-073b** `[P]` Shadow agreement capture on submission — agreement flag and changed-field
   list per invoice. **Req:** FR-058, AC-13.3.

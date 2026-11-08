@@ -7,6 +7,13 @@
 > and comply with the constitution. Where a choice is contested, the rejected alternative and
 > the reason are stated so the decision can be revisited rather than rediscovered.
 
+> **FOSS rewrite note (2026-11-08):** this project no longer runs on Azure (constitution
+> Article I/III/IX). Every row below that used to name an Azure service now names its FOSS or
+> self-hosted replacement. `Tesseract` for extraction is the one swap explicitly confirmed with
+> the project owner; every other replacement in this table is this document's own proposed
+> default, chosen for a single budget VPS deployment — flagged here rather than presented as
+> already decided, and open to revisiting before Phase 2+ work actually builds against it.
+
 ---
 
 ## 1. Technology decisions
@@ -17,36 +24,36 @@ without justification reads as collecting, not engineering.
 
 | Layer | Choice | Satisfies | Rejected alternative and why |
 |---|---|---|---|
-| WhatsApp intake | Azure Communication Services — Advanced Messaging | FR-001, FR-001a | Twilio — works, but a non-Azure dependency and a second billing relationship |
-| Email intake | Logic Apps + Office 365 connector | FR-001 | Graph subscription in code — more to maintain for no gain |
-| API intake | API Management fronting the upload endpoint | FR-001, NFR-021 | Direct exposure — no rate limiting, no centralised auth |
-| PII redaction | Azure AI Language | NFR-025 | Regex — misses names and addresses in free-text fields |
-| Exception explanations | Azure OpenAI | FR-068, FR-069 | Templated strings — brittle across rule combinations, reads robotic |
-| UI hosting | Static Web Apps | FR-095, NFR-021 | Serving React from the API container — couples frontend releases to backend |
-| Security posture | Defender for Cloud | NFR-020, NFR-023 | Manual review — not continuous, not demonstrable to an auditor |
-| Extraction | Azure AI Document Intelligence v4.0 (`2024-11-30` GA) | FR-020..024 | Content Understanding — better multimodal, but lower deterministic accuracy on templated invoices and smaller file limits; revisit per ADR-0001 |
+| WhatsApp intake | Meta WhatsApp Business Cloud API (direct) | FR-001, FR-001a | Twilio — works, but it's a paid reseller layer between us and Meta with no benefit over calling the Cloud API directly |
+| Email intake | IMAP polling activity (Python `imaplib`) against the AP mailbox | FR-001 | A Microsoft Graph/O365-specific connector — ties intake to one mail provider; IMAP works against any mailbox the AP team already has |
+| API intake | nginx (`limit_req` rate limiting) fronting the upload endpoint, FastAPI auth dependency | FR-001, NFR-021 | Direct exposure — no rate limiting, no centralised auth; a dedicated API gateway (Kong/Tyk) — real complexity not justified when nginx already fronts the app for TLS (Article IX) |
+| PII redaction | Microsoft Presidio (self-hosted, MIT-licensed, spaCy-based) | NFR-025 | Regex — misses names and addresses in free-text fields; a hosted PII-detection API — reintroduces a paid, closed dependency for something Presidio does fully offline |
+| Exception explanations | A self-hosted open-weight model (e.g. Llama 3.1/Mistral) served locally via Ollama | FR-068, FR-069 | Templated strings — brittle across rule combinations, reads robotic; a hosted LLM API — works, but reintroduces a paid external call for a feature explicitly scoped to never influence the routing decision (§3c) |
+| UI hosting | nginx serving the Vite static build | FR-095, NFR-021 | Serving React from the API container — couples frontend releases to backend |
+| Security posture | Trivy (container image scan, already wired into `ci.yml`) + gitleaks (secret scan) + `pip-audit`/Dependabot (dependency CVEs) | NFR-020, NFR-023 | Manual review — not continuous, not demonstrable to an auditor |
+| Extraction | Tesseract OCR (via `pytesseract` + `pdf2image`) | FR-020..024 | docTR / PaddleOCR — stronger accuracy on complex layouts, but a heavier, often GPU-oriented footprint unsuited to a single budget VPS; Tesseract runs comfortably CPU-only (project owner's explicit choice) |
 | Language | Python 3.11 | — | C# is equally valid; Python chosen for the labelling/eval tooling ecosystem |
-| Orchestration | Durable Functions (Python) | FR-011, NFR-011, NFR-012 | Logic Apps — poor testability, hard to version; plain queues — no checkpointed state |
-| Review API | FastAPI on Container Apps | FR-060..067 | App Service — no scale-to-zero; AKS — operational overhead unjustified at this scale |
+| Orchestration | This project's own `OrchestrationContext` protocol (`src/functions/orchestrator/context.py`), driven by a self-hosted worker | FR-011, NFR-011, NFR-012 | Durable Functions — Azure-only; Logic Apps — poor testability, hard to version; plain queues — no checkpointed state; Temporal — a genuinely strong FOSS fit, deferred because self-hosting its server is heavier than this project's current scale needs |
+| Review API | FastAPI in a Docker container on the VPS (uvicorn, behind nginx) | FR-060..067 | A managed PaaS (Container Apps/App Service/Fly.io/Render) — recurring cost and a vendor dependency a single-VPS budget doesn't need; AKS — operational overhead unjustified at this scale regardless of host |
 | Review & admin UI | React + Vite + PDF.js | FR-063, FR-095 | Server-rendered — bounding-box overlay needs client-side canvas control |
-| Eventing | Event Grid (blob) + Service Bus (work queues) | NFR-011 | Storage Queues — no dead-lettering or sessions |
-| Transactional store | Azure SQL | FR-090, US-06 | Cosmos DB — the domain is relational (invoice↔line↔PO↔GRN↔vendor); joins matter here |
-| Document store | Blob Storage with lifecycle tiering | NFR-041, NFR-031 | — |
-| Identity | Microsoft Entra ID, Managed Identity | NFR-021..023 | — |
-| Secrets | Key Vault; no secrets in CI | Article III | — |
-| Telemetry | App Insights + OpenTelemetry | NFR-040, AC-09.1 | — |
-| IaC | Bicep | Article IX | Terraform equally valid; Bicep chosen for first-party Azure schema fidelity |
-| CI/CD | GitHub Actions with OIDC federation | Article III, IV | — |
+| Eventing | PostgreSQL `LISTEN/NOTIFY` + a `jobs` table for work queues; a filesystem/object-store watcher for the blob-equivalent trigger | NFR-011 | RabbitMQ/Redis — a second service to run and operate on a single budget VPS when Postgres, already required for the transactional store, carries this volume (500 invoices/hour, NFR-002) without needing hand-built dead-lettering |
+| Transactional store | PostgreSQL | FR-090, US-06 | Cosmos DB / another NoSQL store — the domain is relational (invoice↔line↔PO↔GRN↔vendor); joins matter here |
+| Document store | MinIO (self-hosted, S3-compatible object storage with lifecycle policies) | NFR-041, NFR-031 | Plain filesystem on the VPS — simpler, but no lifecycle tiering and a single-disk failure domain; MinIO is one more container in the same compose file |
+| Identity | Keycloak (self-hosted OpenID Connect/OAuth2) | NFR-021..023 | Rolling custom auth — reinvents session/token handling, MFA, and password reset that Keycloak already solves and keeps audited |
+| Secrets | `.env.prod` on the VPS (root-only file permissions) + GitHub Actions encrypted secrets for CI | Article III | HashiCorp Vault from day one — real operational overhead (unseal keys, HA) not justified for a single-VPS deployment; revisit if the team/infra grows |
+| Telemetry | OpenTelemetry SDK (unchanged — already vendor-neutral) exporting to a self-hosted Grafana + Prometheus + Loki stack | NFR-040, AC-09.1 | App Insights — Azure-only; a hosted SaaS APM (Datadog/New Relic) — real recurring cost and the same vendor-lock problem this whole rewrite exists to remove |
+| IaC | Docker Compose (`docker-compose.prod.yml`) + versioned nginx vhost config + a GitHub Actions deploy workflow | Article IX | Terraform — genuinely FOSS and reasonable, but overkill for provisioning one already-existing VPS with no cloud API resources to declare; revisit if this moves to multiple servers or a provider whose resources (DNS, load balancer) are worth declaring as IaC |
+| CI/CD | GitHub Actions, deploying over SSH with a dedicated deploy key | Article III, IV | OIDC federation — designed for keyless auth to a cloud provider's IAM; a bare VPS has no such IAM to federate against, so a scoped SSH key is the equivalent control |
 
 ### Deliberately excluded
 
 | Service | Why not |
 |---|---|
-| Cosmos DB | The domain is relational — invoice, line, PO, GRN, vendor all join. A second store beside SQL is padding with a real consistency cost. |
-| Data Factory | Vendor master and PO ingestion is a daily CSV. A Function does it in twenty lines. |
-| AKS | Container Apps covers the scaling need. Kubernetes here is overhead with no requirement behind it. |
-| Synapse / Fabric | Reporting volume is thousands of rows. SQL answers every dashboard query. |
-| Cache for Redis | The content-hash cache lives in SQL and is read once per document. No hot path justifies it. |
+| A second NoSQL store (Mongo-, Cosmos-style) | The domain is relational — invoice, line, PO, GRN, vendor all join. A second store beside Postgres is padding with a real consistency cost. |
+| A dedicated ETL tool (Airflow-, Data-Factory-style) | Vendor master and PO ingestion is a daily CSV. A worker script does it in twenty lines. |
+| Kubernetes (any distribution) | Docker Compose on one VPS covers the scaling need this project actually has. Kubernetes here is overhead with no requirement behind it. |
+| A dedicated data warehouse (Synapse-, BigQuery-style) | Reporting volume is thousands of rows. PostgreSQL answers every dashboard query. |
+| Redis / a dedicated cache | The content-hash cache lives in Postgres and is read once per document; the eventing row above already uses Postgres instead of a separate broker for the same reason. No hot path justifies a second service. |
 
 Be ready to give these answers out loud. Naming what you left out, and why, is a stronger
 signal than the length of the list of what you put in.
@@ -60,7 +67,8 @@ src/
 │   │                            ValidationIssue, MatchResult, RoutingResult, enums
 │   ├── extraction/
 │   │   ├── base.py              DocumentExtractor ABC, ExtractionRequest, error types
-│   │   └── document_intelligence.py   ← the only file importing the DI SDK
+│   │   └── tesseract_ocr.py     the FOSS OCR adapter — lazy-imports pytesseract/pdf2image
+│   │                            only inside the functions that call the engine
 │   ├── validation/
 │   │   ├── rules.py             rule registry, ValidationContext, all BR-xx rules
 │   │   └── normalise.py         dates → ISO 8601, amounts → Decimal, currency → ISO 4217
@@ -71,14 +79,15 @@ src/
 │   │   └── confidence_router.py RoutingPolicy, route()
 │   └── persistence/             repository protocols only — no implementations
 ├── infrastructure/              ← adapters implementing core protocols
-│   ├── repositories/            SQL implementations
-│   ├── blob.py, servicebus.py
+│   ├── repositories/            PostgreSQL implementations
+│   ├── blob.py, queue.py        MinIO (object store) and Postgres LISTEN/NOTIFY (work queue)
 │   ├── payments/                PaymentInstructionAdapter ABC + ERP/file adapters
-│   ├── messaging/                ACS WhatsApp send and receive
-│   └── explain/                  Azure OpenAI exception explainer
-├── functions/                   ← Azure Functions host
-│   ├── ingest/                  Event Grid + HTTP triggers
-│   ├── orchestrator/            Durable orchestrator (deterministic, IO-free)
+│   ├── messaging/                WhatsApp Cloud API send and receive
+│   └── explain/                  Ollama-backed exception explainer
+├── functions/                   ← the durable-orchestration host (no cloud Functions runtime)
+│   ├── ingest/                  Postgres/filesystem-watcher + HTTP triggers
+│   ├── orchestrator/            durable orchestrator (deterministic, IO-free) + context.py,
+│   │                            its engine-agnostic OrchestrationContext protocol
 │   └── activities/              one module per activity, thin wrappers over core
 ├── api/                         ← FastAPI
 │   ├── main.py, dependencies.py, security.py
@@ -146,18 +155,20 @@ Mirrored from the customer's ERP export. PO lines carry `quantity_ordered`,
 
 | Channel | Mechanism | Notes |
 |---|---|---|
-| WhatsApp | ACS Advanced Messaging webhook → Functions HTTP trigger | verify webhook signature; download media to `raw/`; sender number recorded as source |
-| Email | Logic App polling the AP mailbox | attachments to `raw/`; body kept for context only |
-| API | APIM → Container Apps upload endpoint | Entra auth, rate limited, 500 MB cap |
-| Portal | Static Web App drag-and-drop → same upload endpoint | |
-| Watched folder | Blob container + Event Grid | SFTP drops from large vendors |
+| WhatsApp | Meta Cloud API webhook → HTTP trigger | verify webhook signature; download media to `raw/`; sender number recorded as source |
+| Email | IMAP poller against the AP mailbox | attachments to `raw/`; body kept for context only |
+| API | nginx → FastAPI upload endpoint | Keycloak-issued bearer auth, rate limited, 500 MB cap |
+| Portal | React drag-and-drop → same upload endpoint | served by the same nginx/FastAPI pair, no separate static-hosting service |
+| Watched folder | MinIO bucket + a lightweight poller/notification hook | SFTP drops from large vendors |
 
-All five converge on the same blob container and the same Event Grid event, so there is exactly
-one processing path regardless of how a document arrived. `document.source` records which.
+All five converge on the same MinIO bucket and the same internal "document received" event (a
+Postgres `jobs` row, see §1's eventing choice), so there is exactly one processing path
+regardless of how a document arrived. `document.source` records which.
 
-**Outbound vendor messaging.** ACS sends acknowledgement and final-status messages. Templates
-carry a reference and a status only — never an amount or bank detail (FR-001b). Outbound
-messages are queued and retried; a delivery failure never blocks invoice processing.
+**Outbound vendor messaging.** The WhatsApp Cloud API sends acknowledgement and final-status
+messages. Templates carry a reference and a status only — never an amount or bank detail
+(FR-001b). Outbound messages are queued and retried; a delivery failure never blocks invoice
+processing.
 
 ## 3b. Shadow mode
 
@@ -244,7 +255,7 @@ Thresholds resolve in order: vendor override → global config → code default
 
 ```
 POST   /api/v1/documents                    upload (FR-001)
-GET    /api/v1/documents/{id}/content       short-lived user-delegated URL (NFR-024)
+GET    /api/v1/documents/{id}/content       short-lived MinIO presigned URL (NFR-024)
 
 GET    /api/v1/review/queue                 filterable (FR-060)
 POST   /api/v1/review/{id}/claim            exclusive lock (FR-061, AC-03.1)
@@ -271,7 +282,7 @@ POST   /api/v1/webhooks/whatsapp            ACS inbound, signature-verified (FR-
 GET    /health/live   GET /health/ready
 ```
 
-**Auth:** Entra ID bearer tokens; app roles `Invoice.Reviewer`, `Invoice.Approver`,
+**Auth:** Keycloak-issued OIDC bearer tokens; app roles `Invoice.Reviewer`, `Invoice.Approver`,
 `Invoice.Administrator`, `Invoice.Auditor` mapped to endpoint scopes (NFR-022).
 
 ## 7. Testing strategy
@@ -300,16 +311,17 @@ at least 1 duplicate pair, at least 1 with altered bank details.
 
 ## 9. Deployment
 
-Environments: `dev` (public networking, Consumption plans, scale-to-zero), `prd` (private
-endpoints, Premium plan, minimum 2 replicas). Production deployment requires manual approval,
-deploys as a canary at 10% traffic, watches error rate for 10 minutes, then promotes or
-rolls back automatically.
+Environments: `dev` (`docker compose up` on a developer machine, hot reload), `prd` (the VPS —
+Docker Compose, nginx + certbot HTTPS, loopback-only container ports per the deployment
+playbook). Production deploys run via GitHub Actions on merge to `main` once CI passes: build
+and push images to GHCR, SSH to the VPS, pull, and restart. Rollback is redeploying the previous
+image tag, the same way.
 
 ## 10. Phasing
 
 | Phase | Delivers | Demo-able outcome |
 |---|---|---|
-| 0 | Repo, constitution, IaC, CI/CD skeleton | `az deployment` succeeds from a clean subscription |
+| 0 | Repo, constitution, IaC, CI/CD skeleton | `docker compose -f docker-compose.prod.yml up -d` succeeds on a clean VPS |
 | 1 | Core domain: models, rules, router, matching + unit tests | full test suite green, no cloud needed |
 | 2 | Extraction adapter, ingestion, orchestration, persistence | an invoice goes in and gets a routing decision |
 | 3 | Review API + React UI with bounding-box overlay | **the demo** — a human resolves an exception in seconds |

@@ -3,7 +3,8 @@
 **Author & maintainer:** Aditya Jagtap · **MitraEdge** · Pune, India
 **Proprietary — all rights reserved.** Not open source. See `LICENSE`.
 
-Production-grade AP automation on **Azure AI Document Intelligence v4.0 (`2024-11-30` GA)**.
+Production-grade AP automation on a **fully FOSS stack** — Tesseract OCR, PostgreSQL, MinIO,
+self-hosted on a single VPS. No cloud vendor lock-in anywhere in the pipeline.
 Ingests supplier invoices from email/blob/API, classifies and extracts them, validates them
 against business rules, performs a 3-way match against PO and goods-receipt data, and routes
 anything below confidence to a **human review queue** whose corrections become training data.
@@ -29,27 +30,29 @@ a demo and something a CFO will sign off on.
 
 ```
                 ┌───────────────┐
-  WhatsApp (ACS)│               │
-  Email (Logic  │               │
-  App)          │               │
-  API (APIM) ──►│ Landing Blob  │
-  Portal upload │  (raw/)       │
+  WhatsApp      │               │
+  (Meta Cloud   │               │
+  API)          │               │
+  Email (IMAP)  │               │
+  API upload ──►│ Landing bucket│
+  Portal upload │  (raw/, MinIO)│
   SFTP watch    │               │
                 └───────┬───────┘
-                        │ Event Grid: BlobCreated
+                        │ bucket-notification webhook
                         ▼
                 ┌───────────────────────┐
-                │ Ingest Function        │  hash → dedupe → virus scan hook
-                │ (Python, isolated)     │  page count → cost pre-check
+                │ Ingest worker          │  hash → dedupe → virus scan hook
+                │ (Python)               │  page count → cost pre-check
                 └───────┬───────────────┘
                         │ start orchestration
                         ▼
         ┌───────────────────────────────────────────────┐
-        │ Durable Functions orchestrator                 │
+        │ Durable orchestrator (plain Python, see        │
+        │ src/functions/orchestrator/context.py)          │
         │                                                │
         │  1. classify      (custom classification model)│
         │  2. split         (multi-invoice PDF → parts)  │
-        │  3. extract       (prebuilt-invoice / custom)  │
+        │  3. extract       (Tesseract OCR)               │
         │  4. normalise     (currency, dates, units)     │
         │  5. validate      (rules engine)               │
         │  6. match         (3-way: INV ↔ PO ↔ GRN)      │
@@ -59,8 +62,8 @@ a demo and something a CFO will sign off on.
                 ▼                            ▼
         ┌───────────────┐            ┌──────────────────┐
         │ Payment       │            │ Review queue      │
-        │ instruction   │            │ (Azure SQL)       │
-        │ (Service Bus) │            │ + AOAI explainer  │
+        │ instruction   │            │ (PostgreSQL)      │
+        │ (Postgres job)│            │ + Ollama explainer│
         └───────┬───────┘            └────────┬─────────┘
                 │                              │
                 ▼                     (shadow mode: every
@@ -78,34 +81,35 @@ a demo and something a CFO will sign off on.
                                               ▼
                                      ┌──────────────────┐
                                      │ Training feedback │
-                                     │ store (Blob)      │
+                                     │ store (MinIO)      │
                                      │ → active learning │
                                      └──────────────────┘
 ```
 
-### Azure services
+### FOSS / self-hosted services
 
 Every service below has a one-line reason. A service with no requirement behind it does not
 go in the architecture — see the "deliberately excluded" list in `specs/001-ap-automation/plan.md`.
+Everything here runs in Docker Compose on a single VPS; nothing requires a cloud vendor account.
 
 | Concern | Service | Why |
 |---|---|---|
-| WhatsApp intake | Communication Services | vendors send invoice photos from their phone; status replies out |
-| Email intake | Logic Apps | mailbox polling with no code to maintain |
-| API intake | API Management | rate limiting and centralised auth on upload |
-| Extraction | Azure AI Document Intelligence v4.0 | `prebuilt-invoice`, custom classifier, custom neural |
-| PII redaction | Azure AI Language | strip names and addresses before any log write |
-| Exception explanations | Azure OpenAI | plain-English reason for a block, never in the decision path |
-| UI hosting | Static Web Apps | review and admin frontends, built-in auth |
-| Security posture | Defender for Cloud | continuous, demonstrable to an auditor |
-| Landing / archive | Blob Storage (hot → cool lifecycle) | cheap, Event Grid native |
-| Eventing | Event Grid + Service Bus | at-least-once, DLQ, ordered per-vendor sessions |
-| Orchestration | Durable Functions | checkpointed multi-step workflow, replayable |
-| Review API | Container Apps (FastAPI) | scale-to-zero, easy private networking |
-| Transactional data | Azure SQL | invoices, lines, PO/GRN, audit — relational by nature |
-| Raw payloads | Blob (`analyzed/`) | full DI JSON kept for reprocessing without re-billing |
-| Secrets | Key Vault + Managed Identity | zero keys in code or CI |
-| Telemetry | App Insights + OpenTelemetry | STP rate, cost/doc, confidence histogram |
+| WhatsApp intake | Meta WhatsApp Business Cloud API | vendors send invoice photos from their phone; status replies out |
+| Email intake | IMAP poller | mailbox polling against any existing mailbox, no vendor connector |
+| API intake | nginx (rate limiting) + FastAPI | rate limiting and centralised auth on upload |
+| Extraction | Tesseract OCR (`pytesseract` + `pdf2image`) | runs fully offline, no API key, no per-page billing |
+| PII redaction | Microsoft Presidio (self-hosted) | strip names and addresses before any log write |
+| Exception explanations | Self-hosted LLM via Ollama | plain-English reason for a block, never in the decision path |
+| UI hosting | nginx (static Vite build) | review and admin frontends |
+| Security posture | Trivy + gitleaks + `pip-audit` in CI | continuous, demonstrable to an auditor |
+| Landing / archive | MinIO (lifecycle policies) | cheap, S3-API compatible |
+| Eventing | PostgreSQL `LISTEN/NOTIFY` + `jobs` table | at-least-once, dead-letter column, no extra broker to run |
+| Orchestration | This project's own `OrchestrationContext` + a self-hosted worker | checkpointed multi-step workflow, replayable |
+| Review API | FastAPI in Docker (uvicorn, behind nginx) | simple, cheap, easy to reason about on one VPS |
+| Transactional data | PostgreSQL | invoices, lines, PO/GRN, audit — relational by nature |
+| Raw payloads | MinIO (`analyzed/`) | full OCR output kept for reprocessing without re-running Tesseract |
+| Secrets | `.env.prod` (VPS-only) + GitHub Actions encrypted secrets | zero keys in code or CI |
+| Telemetry | OpenTelemetry → self-hosted Grafana + Prometheus + Loki | STP rate, cost/doc, confidence histogram |
 
 ---
 
@@ -189,20 +193,20 @@ Implemented in `src/core/validation/rules.py` as composable rules with severity 
 
 ```
 .
-├── .github/workflows/       ci.yml, cd.yml, accuracy-gate.yml, infra-plan.yml, codeql.yml
-├── infra/                   Bicep: main.bicep + modules/*
+├── .github/workflows/       ci.yml, cd.yml, accuracy-gate.yml, deploy-plan.yml, codeql.yml
+├── Dockerfile, docker-compose.prod.yml   backend/frontend images + the VPS deploy stack
 ├── src/
-│   ├── core/                pure, testable domain logic (no Azure SDK in signatures)
-│   │   ├── extraction/      provider interface + Document Intelligence impl
+│   ├── core/                pure, testable domain logic (no infra SDK in signatures)
+│   │   ├── extraction/      provider interface + Tesseract OCR impl
 │   │   ├── validation/      rules engine
 │   │   ├── matching/        vendor resolution + 3-way match
 │   │   ├── routing/         confidence router
 │   │   └── persistence/     repositories
-│   ├── functions/           Azure Functions: ingest trigger + durable orchestrator
+│   ├── functions/           durable-orchestration host: context protocol + orchestrator
 │   └── api/                 FastAPI review/approve/audit endpoints
 ├── tests/
-│   ├── unit/                fast, no network
-│   ├── integration/         hits a sandbox DI resource
+│   ├── unit/                fast, no network, no Tesseract binary required
+│   ├── integration/         hits a real Postgres/MinIO test instance
 │   └── golden/              50 invoices + expected JSON → accuracy regression gate
 ├── docs/                    architecture, cost model, runbook, ADRs
 └── scripts/                 seed data, build training set, cost report
@@ -216,12 +220,13 @@ Implemented in `src/core/validation/rules.py` as composable rules with severity 
 |---|---|---|
 | `ci.yml` | PR | ruff, mypy, bandit, pytest unit + coverage gate 80%, build container, Trivy scan |
 | `accuracy-gate.yml` | PR touching `src/core/extraction` or model config | runs golden set, fails if field-level F1 drops >1pt vs `main` baseline |
-| `infra-plan.yml` | PR touching `infra/` | `az deployment what-if`, posts diff as PR comment |
-| `cd.yml` | merge to `main` | OIDC login → deploy Bicep to dev → smoke tests → **manual approval env** → prod, canary revision on Container Apps, auto-rollback on 5xx |
+| `deploy-plan.yml` | PR touching Docker/Compose/nginx config | posts a diff of what changes on the next deploy as a PR comment |
+| `cd.yml` | merge to `main` | build & push images to GHCR → smoke tests → **manual approval env** → SSH deploy to the VPS, auto-rollback to the previous image tag on failure |
 | `codeql.yml` | schedule | static security analysis |
 
-**No secrets in GitHub.** Auth is federated OIDC to a user-assigned managed identity; the
-only repo-level values are `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
+**No long-lived cloud credentials in GitHub.** Deploys authenticate to the VPS with a
+dedicated SSH deploy key stored as an encrypted repository secret, scoped to nothing but
+that deploy.
 
 ---
 
@@ -232,7 +237,7 @@ git clone <your-fork> && cd ap-automation
 cp .env.example .env
 make setup            # venv + deps + pre-commit
 make test             # unit tests
-make infra-dev        # deploy Bicep to your dev subscription
+make dev              # docker compose up: Postgres, MinIO, API, web
 make seed             # load sample vendors, POs, GRNs
 make run-api          # FastAPI on :8000
 ```
@@ -243,10 +248,11 @@ See `docs/RUNBOOK.md` for operations and `docs/COST_MODEL.md` for per-1000-invoi
 
 Built and maintained by **Aditya Jagtap** (MitraEdge).
 
-I design and deliver document-intelligence systems on Azure — extraction pipelines,
-human-in-the-loop review workflows, and the MLOps around them. If you are evaluating
-AP automation for your finance team, `docs/PILOT_SOW.md` describes a fixed-fee four-week
-pilot run on your own invoices, in your own Azure subscription.
+I design and deliver document-intelligence systems on a fully FOSS, self-hosted stack —
+extraction pipelines, human-in-the-loop review workflows, and the MLOps around them, with no
+cloud vendor lock-in. If you are evaluating AP automation for your finance team,
+`docs/PILOT_SOW.md` describes a fixed-fee four-week pilot run on your own invoices, on
+infrastructure you own.
 
 - GitHub: _add your handle_
 - LinkedIn: _add your profile_

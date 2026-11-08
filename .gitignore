@@ -19,9 +19,6 @@ build/
 .env.*
 !.env.example
 
-# Azure / Bicep
-*.bicepparam.local
-
 # Node / React (src/web)
 src/web/node_modules/
 src/web/dist/

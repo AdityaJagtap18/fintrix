@@ -1,4 +1,4 @@
-"""The Durable Functions orchestrators (plan.md §4, T-051).
+"""The durable orchestrators (plan.md §4, T-051).
 
 Two orchestrator functions, matching the fan-out point in the pipeline (stage 3, split):
 
@@ -7,9 +7,10 @@ Two orchestrator functions, matching the fan-out point in the pipeline (stage 3,
 * `invoice_processing_orchestrator` — stages 4-12 for a single invoice (extract through
   vendor notification).
 
-Both are Python generators that only ever `yield` a call into the Durable Functions
-context — no direct I/O, no `datetime.now()` (use `context.current_utc_datetime`), no
-randomness. That is the whole of what "replays deterministically" (T-051 done-when) means:
+Both are Python generators that only ever `yield` a call into the orchestration context
+(`context.py` — a plain, FOSS protocol, not a specific workflow engine's SDK) — no direct
+I/O, no `datetime.now()` (use `context.current_utc_datetime`), no randomness. That is the
+whole of what "replays deterministically" (T-051 done-when) means:
 the runtime re-executes this generator from the top on every checkpoint, and on replay it
 must ask for exactly the same activities in exactly the same order, or replay corrupts
 state instead of reproducing it. Idempotency (Article V) is the activities' job, not this
@@ -24,20 +25,19 @@ from dataclasses import asdict, dataclass
 from datetime import timedelta
 from typing import Any
 
-import azure.durable_functions as df
-from azure.durable_functions.models.RetryOptions import RetryOptions
+from functions.orchestrator.context import OrchestrationContext, RetryPolicy
 
 # AC-11.4: no reviewer action for 48h escalates to the manager — and stays in the queue,
 # it does not give up.
 ESCALATION_TIMEOUT_HOURS = 48
 
 
-def _cheap_retry() -> RetryOptions:
-    return RetryOptions(first_retry_interval_in_milliseconds=1_000, max_number_of_attempts=5)
+def _cheap_retry() -> RetryPolicy:
+    return RetryPolicy(first_retry_interval_in_milliseconds=1_000, max_number_of_attempts=5)
 
 
-def _standard_retry(max_attempts: int) -> RetryOptions:
-    return RetryOptions(
+def _standard_retry(max_attempts: int) -> RetryPolicy:
+    return RetryPolicy(
         first_retry_interval_in_milliseconds=5_000, max_number_of_attempts=max_attempts
     )
 
@@ -49,7 +49,7 @@ class DocumentIntakeInput:
 
 
 def document_intake_orchestrator(
-    context: df.DurableOrchestrationContext,
+    context: OrchestrationContext,
 ) -> Generator[Any, Any, dict[str, Any]]:
     """Stages 1-3: ingest, classify, split. Terminates early (quarantine) without ever
     reaching extraction if the document isn't a processable invoice."""
@@ -95,7 +95,7 @@ def document_intake_orchestrator(
 
 
 def invoice_processing_orchestrator(
-    context: df.DurableOrchestrationContext,
+    context: OrchestrationContext,
 ) -> Generator[Any, Any, dict[str, Any]]:
     """Stages 4-12 for a single invoice: extract through vendor notification."""
     split = context.get_input()
@@ -173,7 +173,7 @@ def invoice_processing_orchestrator(
 
 
 def _wait_for_review_with_escalation(
-    context: df.DurableOrchestrationContext, invoice_id: str
+    context: OrchestrationContext, invoice_id: str
 ) -> Generator[Any, Any, None]:
     """AC-11.4: escalate once after 48h with no reviewer action, then keep waiting for the
     real `ReviewCompleted` event — escalation is a side effect, not a way out of the loop.
@@ -198,9 +198,11 @@ def _terminal(document_id: str, state: str, reason: str) -> dict[str, Any]:
     return {"document_id": document_id, "state": state, "reason": reason}
 
 
-# Wiring these two generators up as actual Azure Functions triggers — `function_app.py`
-# with `@app.orchestration_trigger`, `host.json`, the activity function bindings — is
-# integration work for T-052/T-049, once the activities they call (extract_invoice,
-# persist_result, etc.) have real implementations behind them. This module is deliberately
-# just the orchestration logic, so it can be unit tested (see
-# tests/unit/test_orchestrator.py) without a Functions host at all.
+# Wiring these two generators up to an actual FOSS durable-task runtime — a worker loop
+# that persists each yielded task, replays the generator from the top on resume, and
+# dispatches activities (e.g. built on Celery/RQ with a Postgres-backed event log, or an
+# embedded runner using APScheduler for the timer/escalation path) — is integration work
+# for T-052/T-049, once the activities they call (extract_invoice, persist_result, etc.)
+# have real implementations behind them. This module is deliberately just the
+# orchestration logic, so it can be unit tested (see tests/unit/test_orchestrator.py)
+# without any runtime at all.

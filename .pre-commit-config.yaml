@@ -12,8 +12,8 @@ repos:
       - id: mypy
         # Deliberately core-only: this hook's isolated env only has what's listed below,
         # not the project .venv — widening files: to api/functions would mean either
-        # duplicating fastapi/azure-functions-durable here too (a second place to keep in
-        # sync with pyproject.toml) or the hook failing on missing imports. ci.yml's
+        # duplicating fastapi here too (a second place to keep in sync with
+        # pyproject.toml) or the hook failing on missing imports. ci.yml's
         # `mypy src/core src/api src/functions` step (using the real venv) is the
         # comprehensive check; this one stays fast and narrow.
         additional_dependencies: [rapidfuzz, types-python-dateutil]

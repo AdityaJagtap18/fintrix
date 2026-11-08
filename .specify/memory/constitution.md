@@ -10,9 +10,11 @@ article wins and the spec must be amended.
 
 ## Article I — The core is pure
 
-Business logic in `src/core/` MUST NOT import any Azure SDK, HTTP client, database driver, or
+Business logic in `src/core/` MUST NOT import any cloud SDK, HTTP client, database driver, or
 framework. It operates on domain dataclasses only. IO happens at the edges: functions,
-API routers, repositories.
+API routers, repositories. This is also what makes the project FOSS-honest: every engine
+`core/` talks to through an adapter (today: Tesseract for OCR) is swapped by writing one new
+class against `DocumentExtractor`, never by touching `core/` itself.
 
 **Test:** `grep -r "azure\.\|import requests\|sqlalchemy" src/core/models.py src/core/validation/ src/core/routing/ src/core/matching/` returns nothing.
 
@@ -27,13 +29,17 @@ leak downstream. Adding a new engine MUST require changes to exactly one new cla
 
 ## Article III — No secrets, anywhere
 
-No API keys, connection strings, passwords, or SAS tokens in source, config files, CI
-variables, or logs. Authentication is Managed Identity in Azure and `DefaultAzureCredential`
-locally. `disableLocalAuth` is set on every service that supports it. CI authenticates by
-federated OIDC. The only repository secret permitted is `GITHUB_TOKEN`.
+No API keys, connection strings, passwords, or tokens in source, config files, CI variables,
+or logs. Local development reads credentials from an untracked `.env` file (`.gitignore`
+excludes it; `.env.example` documents the shape with placeholder values only). Production
+reads them from environment variables injected at deploy time (e.g. a `.env.prod` that never
+leaves the VPS and is never baked into a Docker image layer). CI authenticates to the VPS
+with a dedicated SSH deploy key stored as an encrypted GitHub Actions secret, scoped to
+nothing but that deploy. The only repository secret GitHub itself provisions, `GITHUB_TOKEN`,
+needs no entry in the repo's own secret list.
 
-**Test:** gitleaks scan passes; `az resource` shows `disableLocalAuth: true` on the Document
-Intelligence, Service Bus, and Storage accounts.
+**Test:** gitleaks scan passes; `git ls-files` shows no `.env`, `.env.prod`, private key, or
+other credential file tracked by the repository.
 
 ## Article IV — Accuracy is a build gate, not a hope
 
@@ -67,9 +73,11 @@ are never updated or deleted.
 
 ## Article IX — Infrastructure is code
 
-No resource is created through the portal or an imperative script. Every environment is
-reproducible from `infra/` alone. A pull request that changes infrastructure MUST show a
-`what-if` diff before merge.
+No resource is hand-configured through a web console or an imperative one-off command that
+isn't also captured in version control. Every environment is reproducible from the
+repository's Dockerfiles, `docker-compose.prod.yml`, nginx vhost config, and GitHub Actions
+deploy workflow alone — no undocumented state lives only on the VPS. A pull request that
+changes any of these MUST describe what changes on the next deploy before merge.
 
 ## Article X — Observability is business-first
 
