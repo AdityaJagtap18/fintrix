@@ -64,13 +64,11 @@ source = ["src/core", "src/api", "src/functions"]
 branch = true
 
 [tool.coverage.report]
-# Constitution Article XI: >=90% on src/core specifically, >=80% overall. Coverage.py's
-# fail_under is a single blended number, not per-path — 90 here is deliberately the
-# stricter of the two, so this run can never silently satisfy "80% overall" while core
-# itself has drifted below 90. If a future infrastructure-heavy module (a real-engine
-# adapter, hard to unit test meaningfully) drags the blended number down, split this into
-# two `coverage report --include` runs rather than lowering this number.
-fail_under = 90
+# Constitution Article XI: >=90% on src/core specifically, >=80% overall. No blanket
+# fail_under here — ci.yml enforces both bounds as two separate `coverage report
+# --include`/`--fail-under` runs against the same collected data, since a single blended
+# number can't express "stricter on core, looser on the thinner api/functions surface"
+# without either over-constraining api/functions or silently letting core drift.
 show_missing = true
 
 [tool.ruff]

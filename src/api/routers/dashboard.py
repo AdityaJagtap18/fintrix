@@ -65,19 +65,25 @@ def dashboard_metrics(store: Store) -> dict[str, Any]:
         if r.status not in _ATTENTION_LIKE:
             continue
         if _has_low_confidence_field(r):
-            needs_attention.append({
-                "kind": "low_confidence",
-                "invoiceId": r.invoice.invoice_id,
-                "title": "Low-confidence extraction",
-                "description": f"{r.invoice.invoice_id} has fields below the confidence threshold",
-            })
+            needs_attention.append(
+                {
+                    "kind": "low_confidence",
+                    "invoiceId": r.invoice.invoice_id,
+                    "title": "Low-confidence extraction",
+                    "description": (
+                        f"{r.invoice.invoice_id} has fields below the confidence threshold"
+                    ),
+                }
+            )
         else:
-            needs_attention.append({
-                "kind": "validation",
-                "invoiceId": r.invoice.invoice_id,
-                "title": "Needs review",
-                "description": f"{r.invoice.invoice_id} is flagged for manual review",
-            })
+            needs_attention.append(
+                {
+                    "kind": "validation",
+                    "invoiceId": r.invoice.invoice_id,
+                    "title": "Needs review",
+                    "description": f"{r.invoice.invoice_id} is flagged for manual review",
+                }
+            )
 
     return {
         "totalProcessed": total_processed,

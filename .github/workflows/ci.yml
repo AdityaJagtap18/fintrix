@@ -39,11 +39,14 @@ jobs:
       - name: bandit
         run: bandit -r src -q
 
-      - name: pytest with coverage gate
+      - name: pytest with coverage
         run: pytest tests/unit --cov --cov-report=term-missing --cov-report=xml
-        # fail_under = 90 is enforced by [tool.coverage.report] in pyproject.toml,
-        # covering src/core + src/api + src/functions — matching constitution Article XI
-        # (>=90% on core, >=80% overall; 90 stays the gate since it's the stricter bound).
+
+      - name: coverage gate — core >= 90% (Article XI)
+        run: coverage report --include="src/core/*" --fail-under=90
+
+      - name: coverage gate — overall >= 80% (Article XI)
+        run: coverage report --fail-under=80
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4

@@ -133,15 +133,33 @@ def _build_invoices() -> list[InvoiceRecord]:
         document_id="doc-0842",
         vendor_id="v-techbuild",
         lines=[
-            LineItem(1, "Cloud Infrastructure Support (Managed Services - Nov 2026)",
-                      Decimal("1"), Decimal("60000.00"), Decimal("60000.00"),
-                      product_code="998315", row_confidence=0.99),
-            LineItem(2, "Data Integration & ETL Maintenance",
-                      Decimal("1"), Decimal("25000.00"), Decimal("25000.00"),
-                      product_code="998319", row_confidence=0.98),
-            LineItem(3, "Reporting & Dashboard Enhancements",
-                      Decimal("1"), Decimal("15000.00"), Decimal("15000.00"),
-                      product_code="998319", row_confidence=0.98),
+            LineItem(
+                1,
+                "Cloud Infrastructure Support (Managed Services - Nov 2026)",
+                Decimal("1"),
+                Decimal("60000.00"),
+                Decimal("60000.00"),
+                product_code="998315",
+                row_confidence=0.99,
+            ),
+            LineItem(
+                2,
+                "Data Integration & ETL Maintenance",
+                Decimal("1"),
+                Decimal("25000.00"),
+                Decimal("25000.00"),
+                product_code="998319",
+                row_confidence=0.98,
+            ),
+            LineItem(
+                3,
+                "Reporting & Dashboard Enhancements",
+                Decimal("1"),
+                Decimal("15000.00"),
+                Decimal("15000.00"),
+                product_code="998319",
+                row_confidence=0.98,
+            ),
         ],
     )
     inv.fields = {
@@ -155,8 +173,15 @@ def _build_invoices() -> list[InvoiceRecord]:
         # Mismatched on purpose: 100000 + 18000 = 118000, but the stated total is 118240.
         "total": _field("total", Decimal("118240.00"), 0.90, needs_review=True),
     }
-    records.append(InvoiceRecord(inv, "TechBuild Solutions Pvt. Ltd.", "needs_review",
-                                  datetime(2026, 11, 6, 10, 24), "/sample-invoice.pdf"))
+    records.append(
+        InvoiceRecord(
+            inv,
+            "TechBuild Solutions Pvt. Ltd.",
+            "needs_review",
+            datetime(2026, 11, 6, 10, 24),
+            "/sample-invoice.pdf",
+        )
+    )
 
     # INV-1042 — Acme: the original mock scenario (subtotal+tax vs total mismatch),
     # kept so the one demo PDF (public/sample-invoice.pdf) still lines up with its
@@ -170,59 +195,155 @@ def _build_invoices() -> list[InvoiceRecord]:
         "total": _field("total", Decimal("51000.00"), 0.58, needs_review=True),
     }
     inv.lines = [
-        LineItem(1, "Office chairs (ergonomic)", Decimal("25"), Decimal("1850.00"),
-                  Decimal("46250.00"), product_code="FUR-201", row_confidence=0.93),
-        LineItem(2, "Desk lamps", Decimal("20"), Decimal("100.00"),
-                  Decimal("2000.00"), product_code="FUR-330", row_confidence=0.90),
+        LineItem(
+            1,
+            "Office chairs (ergonomic)",
+            Decimal("25"),
+            Decimal("1850.00"),
+            Decimal("46250.00"),
+            product_code="FUR-201",
+            row_confidence=0.93,
+        ),
+        LineItem(
+            2,
+            "Desk lamps",
+            Decimal("20"),
+            Decimal("100.00"),
+            Decimal("2000.00"),
+            product_code="FUR-330",
+            row_confidence=0.90,
+        ),
     ]
-    records.append(InvoiceRecord(inv, "Acme Supplies Pvt Ltd", "needs_review",
-                                  datetime(2026, 8, 15, 9, 10), "/sample-invoice.pdf"))
+    records.append(
+        InvoiceRecord(
+            inv,
+            "Acme Supplies Pvt Ltd",
+            "needs_review",
+            datetime(2026, 8, 15, 9, 10),
+            "/sample-invoice.pdf",
+        )
+    )
 
     plain = [
-        ("INV-2026-0836", "v-acme", "Acme Supplies Pvt Ltd", date(2026, 10, 31),
-         Decimal("124560.00"), "approved"),
-        ("INV-2026-0835", "v-nexora", "Global Tech Solutions", date(2026, 10, 31),
-         Decimal("348900.00"), "approved"),
-        ("INV-2026-0834", "v-techbuild", "Prime Logistics", date(2026, 10, 30),
-         Decimal("82740.00"), "needs_review"),
-        ("INV-2026-0833", "v-infraworks", "OfficeHub Traders", date(2026, 10, 30),
-         Decimal("56200.00"), "approved"),
-        ("INV-2026-0832", "v-vertex", "Vertex Facilities", date(2026, 10, 29),
-         Decimal("208400.00"), "flagged"),
-        ("INV-0841", "v-global", "Global Supplies Ltd.", date(2026, 11, 5),
-         Decimal("72500.00"), "needs_review"),
-        ("INV-0840", "v-nexora", "Nexora Analytics Pvt. Ltd.", date(2026, 11, 3),
-         Decimal("245000.00"), "approved"),
-        ("INV-0839", "v-infraworks", "InfraWorks", date(2026, 11, 2),
-         Decimal("75800.00"), "approved"),
-        ("INV-0838", "v-alpha", "Alpha Enterprises", date(2026, 11, 1),
-         Decimal("150000.00"), "rejected"),
-        ("INV-0837", "v-vertex", "Vertex Facilities", date(2026, 10, 29),
-         Decimal("48200.00"), "processed"),
+        (
+            "INV-2026-0836",
+            "v-acme",
+            "Acme Supplies Pvt Ltd",
+            date(2026, 10, 31),
+            Decimal("124560.00"),
+            "approved",
+        ),
+        (
+            "INV-2026-0835",
+            "v-nexora",
+            "Global Tech Solutions",
+            date(2026, 10, 31),
+            Decimal("348900.00"),
+            "approved",
+        ),
+        (
+            "INV-2026-0834",
+            "v-techbuild",
+            "Prime Logistics",
+            date(2026, 10, 30),
+            Decimal("82740.00"),
+            "needs_review",
+        ),
+        (
+            "INV-2026-0833",
+            "v-infraworks",
+            "OfficeHub Traders",
+            date(2026, 10, 30),
+            Decimal("56200.00"),
+            "approved",
+        ),
+        (
+            "INV-2026-0832",
+            "v-vertex",
+            "Vertex Facilities",
+            date(2026, 10, 29),
+            Decimal("208400.00"),
+            "flagged",
+        ),
+        (
+            "INV-0841",
+            "v-global",
+            "Global Supplies Ltd.",
+            date(2026, 11, 5),
+            Decimal("72500.00"),
+            "needs_review",
+        ),
+        (
+            "INV-0840",
+            "v-nexora",
+            "Nexora Analytics Pvt. Ltd.",
+            date(2026, 11, 3),
+            Decimal("245000.00"),
+            "approved",
+        ),
+        (
+            "INV-0839",
+            "v-infraworks",
+            "InfraWorks",
+            date(2026, 11, 2),
+            Decimal("75800.00"),
+            "approved",
+        ),
+        (
+            "INV-0838",
+            "v-alpha",
+            "Alpha Enterprises",
+            date(2026, 11, 1),
+            Decimal("150000.00"),
+            "rejected",
+        ),
+        (
+            "INV-0837",
+            "v-vertex",
+            "Vertex Facilities",
+            date(2026, 10, 29),
+            Decimal("48200.00"),
+            "processed",
+        ),
     ]
     for invoice_number, vendor_id, vendor_display, inv_date, total, status in plain:
         subtotal = (total / Decimal("1.18")).quantize(Decimal("0.01"))
         tax = total - subtotal
-        inv = Invoice(invoice_id=invoice_number, document_id=f"doc-{invoice_number}",
-                       vendor_id=vendor_id)
+        inv = Invoice(
+            invoice_id=invoice_number, document_id=f"doc-{invoice_number}", vendor_id=vendor_id
+        )
         inv.fields = {
             "vendor_name": _field("vendor_name", vendor_display, 0.97),
             "invoice_number": _field("invoice_number", invoice_number, 0.99),
             "invoice_date": _field("invoice_date", inv_date, 0.96),
             "subtotal": _field("subtotal", subtotal, 0.95),
             "tax_total": _field("tax_total", tax, 0.95),
-            "total": _field("total", total, 0.95 if status != "flagged" else 0.55,
-                             needs_review=status in ("needs_review", "flagged")),
+            "total": _field(
+                "total",
+                total,
+                0.95 if status != "flagged" else 0.55,
+                needs_review=status in ("needs_review", "flagged"),
+            ),
         }
         inv.lines = [
-            LineItem(1, f"Services rendered — {invoice_number}", Decimal("1"), subtotal,
-                      subtotal, row_confidence=0.95),
+            LineItem(
+                1,
+                f"Services rendered — {invoice_number}",
+                Decimal("1"),
+                subtotal,
+                subtotal,
+                row_confidence=0.95,
+            ),
         ]
-        records.append(InvoiceRecord(
-            inv, vendor_display, status,
-            datetime.combine(inv_date, datetime.min.time()),
-            "/sample-invoice.pdf",
-        ))
+        records.append(
+            InvoiceRecord(
+                inv,
+                vendor_display,
+                status,
+                datetime.combine(inv_date, datetime.min.time()),
+                "/sample-invoice.pdf",
+            )
+        )
 
     return records
 
