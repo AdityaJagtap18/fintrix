@@ -7,6 +7,8 @@ fact that storage is a Python list.
 
 from __future__ import annotations
 
+import builtins
+
 from api.seed_data import SEED_INVOICES, SEED_VENDORS, InvoiceRecord
 from core.models import Vendor
 
@@ -20,6 +22,9 @@ class InMemoryInvoiceStore:
 
     def get(self, invoice_id: str) -> InvoiceRecord | None:
         return self._records.get(invoice_id)
+
+    def add(self, record: InvoiceRecord) -> None:
+        self._records[record.invoice.invoice_id] = record
 
     def set_status(self, invoice_id: str, status: str) -> None:
         if invoice_id in self._records:
@@ -40,6 +45,15 @@ class InMemoryVendorStore:
 
     def get(self, vendor_id: str) -> Vendor | None:
         return self._vendors.get(vendor_id)
+
+    # core.persistence.VendorLookup — lets this double as the vendor pool for
+    # core.matching.vendor.resolve_vendor (BR-11/12) against the same seeded vendors the
+    # UI already shows, rather than a separate throwaway lookup just for uploads.
+    def find_by_tax_id(self, tax_id: str) -> Vendor | None:
+        return next((v for v in self._vendors.values() if v.tax_id == tax_id), None)
+
+    def active_vendors(self) -> builtins.list[Vendor]:
+        return [v for v in self._vendors.values() if v.is_active]
 
 
 _invoice_store = InMemoryInvoiceStore(list(SEED_INVOICES))

@@ -24,4 +24,10 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "src"]
+# --proxy-headers: the host nginx terminates TLS and proxies over plain HTTP to this
+# container (deploy/nginx/fintrix.conf), so without this uvicorn reports every request as
+# scheme=http regardless of what the client actually used — wrong for anything that builds
+# an absolute URL from the request (e.g. the invoice-upload endpoint's pdf_url). Only
+# nginx on the same host can reach this container's port at all (docker-compose.prod.yml
+# binds it to 127.0.0.1), so trusting X-Forwarded-* from any peer here is safe.
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "src", "--proxy-headers", "--forwarded-allow-ips=*"]

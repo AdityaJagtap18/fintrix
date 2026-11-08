@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { listInvoices, type InvoiceSummary } from "../api/invoicesClient";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { listInvoices, uploadInvoice, type InvoiceSummary } from "../api/invoicesClient";
 import { InvoiceStatusBadge } from "../components/invoices/InvoiceStatusBadge";
 import { formatDate, formatINR } from "../lib/format";
 
@@ -19,6 +19,10 @@ export function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +79,22 @@ export function InvoicesPage() {
     setSelected((prev) => (prev.size === sorted.length ? new Set() : new Set(sorted.map((i) => i.invoiceId))));
   }
 
+  async function handleFileChosen(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const result = await uploadInvoice(file);
+      navigate(`/review/${result.invoiceId}`);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Could not upload invoice.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -84,14 +104,24 @@ export function InvoicesPage() {
           <h1>Invoices</h1>
           <p>View and manage all processed invoices.</p>
         </div>
-        <button
-          type="button"
-          className="btn btn--primary"
-          disabled
-          title="Upload intake runs via email/blob/API per the architecture (README §2) — not wired into this demo UI."
-        >
-          Upload Invoices
-        </button>
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            hidden
+            onChange={handleFileChosen}
+          />
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? "Uploading…" : "Upload Invoices"}
+          </button>
+          {uploadError && <p role="alert">{uploadError}</p>}
+        </div>
       </div>
 
       <div className="invoices-page__filters">

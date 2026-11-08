@@ -14,6 +14,10 @@ dependencies = [
     # plus `.[ocr]`, with no linting/test tooling along for the ride.
     "fastapi>=0.112",
     "uvicorn[standard]>=0.30",
+    # FastAPI's UploadFile/File() parsing (the invoice-upload endpoint) is implemented on
+    # top of this at request time — not a direct import anywhere in our code, but missing
+    # it turns every upload into a 500 at the first multipart request.
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]

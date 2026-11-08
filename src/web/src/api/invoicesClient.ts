@@ -33,6 +33,23 @@ export async function getInvoiceDetail(invoiceId: string): Promise<ReviewInvoice
   return response.json();
 }
 
+export interface UploadInvoiceResult {
+  invoiceId: string;
+  decision: string;
+  reason: string;
+}
+
+export async function uploadInvoice(file: File): Promise<UploadInvoiceResult> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${API_BASE}/upload`, { method: "POST", body });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.detail ?? `failed to upload invoice: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function listInvoices(params: InvoiceListParams = {}): Promise<InvoiceListResult> {
   const search = new URLSearchParams();
   if (params.status) search.set("status", params.status);
