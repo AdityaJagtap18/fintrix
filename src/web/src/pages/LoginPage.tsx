@@ -53,6 +53,20 @@ export function LoginPage() {
     }
   }
 
+  async function handleDemoLogin() {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await login("aditya@company.com", "fintrix123", remember);
+      const from = (location.state as { from?: string } | null)?.from ?? "/";
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err instanceof InvalidCredentialsError ? err.message : "Could not sign in. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="login-page">
       <div className="login-page__panel">
@@ -140,9 +154,14 @@ export function LoginPage() {
             {submitting ? "Signing in…" : "Sign In"}
           </button>
 
-          <p className="login-page__hint">
-            Demo credentials: <code>aditya@company.com</code> / <code>fintrix123</code>
-          </p>
+          <button
+            type="button"
+            className="login-page__demo-login"
+            onClick={handleDemoLogin}
+            disabled={submitting}
+          >
+            {submitting ? "Signing in…" : "Demo Login"}
+          </button>
         </form>
       </div>
     </div>
